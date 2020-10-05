@@ -14,6 +14,8 @@ library(spdep)
 library(caret)
 library(ckanr)
 library(FNN)
+library(rgdal)
+library(raster)
 
 options(scipen=999)
 options(tigris_class = "sf")
@@ -120,11 +122,22 @@ tracts18 <-
          year = "2018") %>%
   dplyr::select(-Whites, -TotalPoverty) 
 
+# Load Crime
+miamicrime <-st_read("MiamiCrime/09-27-10-03-2020-miamicrime.shp")%>%
+  st_transform('EPSG:6346')
 
 # Load neighborhoods
 nhoods <- 
   st_read("https://opendata.arcgis.com/datasets/2f54a0cbd67046f2bd100fb735176e6c_0.geojson") %>%
   st_transform('EPSG:6346')
+#nhoodsmiamibeach <-
+  st_read("miamibeach/miamibeachnb2.shp")%>%
+  st_transform('EPSG:6346')
+#nhoodsmiami <- nhoodsmiami[2]
+#nhoodsmiamibeach <-nhoodsmiamibeach[1]%>%
+  rename(LABEL = Name)
+#nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
+
 
 # select only miami tracts
 miami <- st_union(nhoods)
