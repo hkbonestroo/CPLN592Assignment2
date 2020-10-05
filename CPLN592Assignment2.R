@@ -16,6 +16,8 @@ library(ckanr)
 library(FNN)
 library(rgdal)
 library(raster)
+library(rgeos)
+library(sp)
 
 options(scipen=999)
 options(tigris_class = "sf")
@@ -97,8 +99,11 @@ census_api_key("91a259a2aaac3093a636d189040e0ff263fc823b", overwrite = TRUE)
 
 # Load Assignment 2 student data
 Miami_Houses <- 
-    st_read("studentsData.geojson") %>% 
-      st_transform('EPSG:6346')
+  rbind(
+    st_read("studentsData.geojson") %>%
+    st_transform(st_crs('EPSG:6346')))
+Miami_Houses <- st_set_crs(Miami_Houses, 6346)
+
 
 # Miami Training Data
 '%ni%' <- Negate('%in%')
@@ -123,21 +128,29 @@ tracts18 <-
   dplyr::select(-Whites, -TotalPoverty) 
 
 # Load Crime
-miamicrime <-st_read("MiamiCrime/09-27-10-03-2020-miamicrime.shp")%>%
-  st_transform('EPSG:6346')
+miamicrime <- 
+  rbind(
+    st_read("MiamiCrime/09-27-10-03-2020-miamicrime.shp") %>% 
+      st_transform(st_crs('EPSG:6346')))
 
 # Load neighborhoods
-nhoods <- 
+nhoodsmiami <- 
+  rbind(
   st_read("https://opendata.arcgis.com/datasets/2f54a0cbd67046f2bd100fb735176e6c_0.geojson") %>%
-  st_transform('EPSG:6346')
-#nhoodsmiamibeach <-
-  st_read("miamibeach/miamibeachnb2.shp")%>%
-  st_transform('EPSG:6346')
-#nhoodsmiami <- nhoodsmiami[2]
-#nhoodsmiamibeach <-nhoodsmiamibeach[1]%>%
-  rename(LABEL = Name)
-#nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
+  st_transform('EPSG:6346'))
+nhoodsmiami <- st_set_crs(nhoodsmiami, 6346)
 
+nhoodsmiamibeach <-
+  rbind(st_read("neighborhoods/miamineighborhoods.shp")%>%
+  st_transform('EPSG:6346'))
+nhoodsmiamibeach <- st_set_crs(nhoodsmiamibeach,6346)
+
+nhoodsmiami <- nhoodsmiami[2]
+nhoodsmiamibeach <-nhoodsmiamibeach[1]%>%
+ rename(LABEL = Name)
+nhoodsmiami <-st_zm(nhoodsmiami, drop = TRUE, what = "ZM")
+nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
+nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
 
 # select only miami tracts
 miami <- st_union(nhoods)
@@ -159,3 +172,22 @@ ggplot() +
   labs(title="Price Per Square Foot, Miami") +
   mapTheme()
 
+# Nearest neighbor crime
+st_c <- st_coordinates
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    crime_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 1),
+    crime_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 2), 
+    crime_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 3), 
+    crime_nn4 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 4), 
+    crime_nn5 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 5)) 
+crime1 <- nn_function(st_c(Miami_Houses), st_c(miamicrime,1))
+
+
+# crime buffer
+Miami_Houses$crimes.Buffer =
+  st_buffer(Miami_Houses, 201) %>%
+  aggregate(mutate(miamicrime, counter = 1),., sum) %>%
+  pull(counter)
