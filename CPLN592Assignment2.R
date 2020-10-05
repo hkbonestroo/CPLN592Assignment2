@@ -162,7 +162,6 @@ tracts18miami <- tracts18[tracts.miami.intersect[[1]],]
 # create PricePerSq 
 Miami_Houses$PricePerSq <- Miami_Houses$SalePrice/Miami_Houses$AdjustedSqFt
 
-
 # Plot PricePerSq over neighborhoods
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
@@ -186,11 +185,21 @@ Miami_Houses <-
     crime_nn4 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 4), 
     crime_nn5 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 5)) 
 
-
 # crime buffer for .5 miles
 Miami_Housesbuffer <- st_buffer(Miami_Houses, 402)
 crime_in_buffer <- st_join(miamicrime, Miami_Housesbuffer, join = st_within)
 crime_buffer_count <- count(as_tibble(crime_in_buffer), Folio) 
 Miami_Houses <- left_join(Miami_Houses, crime_buffer_count)%>%
-  rename(crimesbuffer = n)
+  r
+ename(crimesbuffer = n)
+
+# load beach feature
+miamibeach <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/d0d6e6c9d47145a0b05d6621ef29d731_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miamibeach <- st_set_crs(nhoodsmiami, 6346)
+
+Miami_Houses.centroids <-st_centroid(Miami_Houses)
+gDistance(Miami_Houses.centroids, miamibeach,byid=TRUE)
 
