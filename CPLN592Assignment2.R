@@ -20,6 +20,8 @@ library(rgeos)
 library(sp)
 library(tidyr)
 library(dplyr)
+library(osmdata)
+
 
 options(scipen=999)
 options(tigris_class = "sf")
@@ -201,5 +203,30 @@ miamibeach <-
 miamibeach <- st_set_crs(nhoodsmiami, 6346)
 
 Miami_Houses.centroids <-st_centroid(Miami_Houses)
+
+#trying to figure out distance? Didn't work
 gDistance(Miami_Houses.centroids, miamibeach,byid=TRUE)
 
+# Load Open streets map data
+miami.base <- 
+  st_read("https://opendata.arcgis.com/datasets/5ece0745e24b4617a49f2e098df8117f_0.geojson") %>%
+  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
+  st_union()
+xmin = st_bbox(miami.base)[[1]]
+ymin = st_bbox(miami.base)[[2]]
+xmax = st_bbox(miami.base)[[3]]  
+ymax = st_bbox(miami.base)[[4]]
+
+ggplot() +
+  geom_sf(data=miami.base, fill="black") +
+  geom_sf(data=st_as_sfc(st_bbox(miami.base)), colour="red", fill=NA)
+bars <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>% 
+  add_osm_feature(key = 'amenity', value = c("bar", "pub", "restaurant")) %>%
+  osmdata_sf()
+bars <- 
+  bars$osm_points %>%
+  .[miami.base,]
+
+ggplot() +
+  geom_sf(data=miami.base, fill="black") +
+  geom_sf(data=bars, colour="red", size=.75) 
