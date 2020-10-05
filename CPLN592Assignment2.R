@@ -18,6 +18,8 @@ library(rgdal)
 library(raster)
 library(rgeos)
 library(sp)
+library(tidyr)
+library(dplyr)
 
 options(scipen=999)
 options(tigris_class = "sf")
@@ -183,11 +185,12 @@ Miami_Houses <-
     crime_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 3), 
     crime_nn4 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 4), 
     crime_nn5 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 5)) 
-crime1 <- nn_function(st_c(Miami_Houses), st_c(miamicrime,1))
 
 
-# crime buffer
-Miami_Houses$crimes.Buffer =
-  st_buffer(Miami_Houses, 201) %>%
-  aggregate(mutate(miamicrime, counter = 1),., sum) %>%
-  pull(counter)
+# crime buffer for .5 miles
+Miami_Housesbuffer <- st_buffer(Miami_Houses, 402)
+crime_in_buffer <- st_join(miamicrime, Miami_Housesbuffer, join = st_within)
+crime_buffer_count <- count(as_tibble(crime_in_buffer), Folio) 
+Miami_Houses <- left_join(Miami_Houses, crime_buffer_count)%>%
+  rename(crimesbuffer = n)
+
