@@ -230,3 +230,38 @@ bars <-
 ggplot() +
   geom_sf(data=miami.base, fill="black") +
   geom_sf(data=bars, colour="red", size=.75) 
+
+# automate the test
+
+vars <- c("SalePrice", "AdjustedSqFt", "LotSize","YearBuilt",
+          "crime_nn2")
+
+N <- list(1,2,3,4)
+comb <- sapply(N, function(m) combn(x=vars[2:5], m))
+
+comb2 <- list()
+k=0
+for(i in seq(comb)){
+  tmp <- comb[[i]]
+  for(j in seq(ncol(tmp))){
+    k <- k + 1
+    comb2[[k]] <- formula(paste("SalePrice", "~", paste(tmp[,j], collapse=" + ")))
+  }
+}
+
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+two <-2
+MAE.matrix <- matrix(NA, nrow = length(comb2), ncol = two)
+
+for(j in 1:length(comb2)){
+  reg.cv <- 
+    train(comb2[[j]], data=st_drop_geometry(Miami_Houses), 
+          method = "lm", trControl = fitControl, na.action = na.pass)
+  MAE.output$MAE <- mean(reg.cv$resample[,3])
+  MAE.matrix[j,1]<-mean(reg.cv$resample[,3])
+  MAE.matrix[j,2]<- paste(comb2[j])
+}
+
+
+
