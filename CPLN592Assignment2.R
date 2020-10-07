@@ -156,6 +156,11 @@ nhoodsmiami <-st_zm(nhoodsmiami, drop = TRUE, what = "ZM")
 nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
 nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
 
+Miami_Houses.centroids <-st_centroid(Miami_Houses)
+Miami_Houses <-
+  Miami_Houses %>%
+  mutate(neighborhood= st_join(Miami_Houses.centroids, nhoods, join = st_within)%>%st_drop_geometry())
+
 # select only miami tracts
 miami <- st_union(nhoods)
 tracts.miami.intersect <- st_intersects(miami, tracts18)
@@ -192,8 +197,7 @@ Miami_Housesbuffer <- st_buffer(Miami_Houses, 402)
 crime_in_buffer <- st_join(miamicrime, Miami_Housesbuffer, join = st_within)
 crime_buffer_count <- count(as_tibble(crime_in_buffer), Folio) 
 Miami_Houses <- left_join(Miami_Houses, crime_buffer_count)%>%
-  r
-ename(crimesbuffer = n)
+  rename(crimesbuffer = n)
 
 # load beach feature
 miamibeach <- 
@@ -204,8 +208,13 @@ miamibeach <- st_set_crs(nhoodsmiami, 6346)
 
 Miami_Houses.centroids <-st_centroid(Miami_Houses)
 
-#trying to figure out distance? Didn't work
-gDistance(Miami_Houses.centroids, miamibeach,byid=TRUE)
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    beachDist = st_distance(Miami_Houses.centroids, miamibeach))
+
+# pool
+Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"yes")
 
 # Load Open streets map data
 miami.base <- 
@@ -234,10 +243,10 @@ ggplot() +
 # automate the test
 
 vars <- c("SalePrice", "AdjustedSqFt", "LotSize","YearBuilt",
-          "crime_nn2")
+          "crime_nn2","beachDist")
 
-N <- list(1,2,3,4)
-comb <- sapply(N, function(m) combn(x=vars[2:5], m))
+N <- list(1,2,3,4,5)
+comb <- sapply(N, function(m) combn(x=vars[2:6], m))
 
 comb2 <- list()
 k=0
