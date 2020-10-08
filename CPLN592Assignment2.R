@@ -306,12 +306,11 @@ Miami_Houses <-
     waterDist = st_distance(Miami_Houses.centroids, miamiwater))
 
 # highways
-miamiHighways <-
-  rbind(st_read("tl_2019_12_prisecroads/tl_2019_12_prisecroads.shp")%>%
-          st_transform('EPSG:6346'))
+miamiHighways <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/6d31141fd24148f0b352f341ef38d161_0.geojson") %>%
+      st_transform('EPSG:6346'))
 miamiHighways <- st_set_crs(miamiHighways,6346)
-highways.miami.intersect <- st_intersects(miami, miamiHighways)
-miamiHighways <- miamiHighways[highways.miami.intersect[[1]],]
 
 miamiHighwaysbuffer.125 <- 
   rbind(
@@ -343,6 +342,44 @@ Miami_Houses$Highwaydist <- ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.1
                             ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.25), Miami_Houses$Highwaydist<-".25",
                                    ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.5), Miami_Houses$Highwaydist<-".5",Miami_Houses$Highwaydist<-"over .5")))
 
+#main roads
+miamimainroads <- 
+  rbind(
+    st_read("tl_2019_12_prisecroads/tl_2019_12_prisecroads.shp") %>%
+      st_transform('EPSG:6346'))
+miamimainroads <- st_set_crs(miamimainroads,6346)
+mainroads.miami.intersect <- st_intersects(miami, miamimainroads)
+miamimainroads <- miamimainroads[mainroads.miami.intersect[[1]],]
+
+miamimainroadsbuffer.125 <- 
+  rbind(
+    st_union(st_buffer(miamimainroads, 201.168)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamimainroadsbuffer.125<-miamimainroadsbuffer.125%>%
+  rename(buffer.mainroads.125 = Legend)
+miamimainroadsbuffer.25 <- 
+  rbind(
+    st_union(st_buffer(miamimainroads, 402.336)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamimainroadsbuffer.25<-miamimainroadsbuffer.25%>%
+  rename(buffer.mainroads.25 = Legend)
+miamimainroadsbuffer.5 <- 
+  rbind(
+    st_union(st_buffer(miamimainroads, 804.672)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamimainroadsbuffer.5<-miamimainroadsbuffer.5%>%
+  rename(buffer.mainroads.5 = Legend)
+
+Miami_Houses <- st_join(Miami_Houses, miamimainroadsbuffer.125, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamimainroadsbuffer.25, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamimainroadsbuffer.5, join = st_within)
+
+Miami_Houses$mainroadsdist <- ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.mainroads.125), Miami_Houses$mainroadsdist<-".125",
+                                   ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.mainroads.25), Miami_Houses$mainroadsdist<-".25",
+                                          ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.mainroads.5), Miami_Houses$mainroadsdist<-".5",Miami_Houses$mainroadsdist<-"over .5")))
 
 # Neighborhoods
 Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
@@ -396,6 +433,13 @@ bars <-
 ggplot() +
   geom_sf(data=miami.base, fill="black") +
   geom_sf(data=bars, colour="red", size=.75) 
+
+# coordinates
+Miami_Houses.centroidss <-st_centroid(Miami_Houses)
+Miami_Houses <- Miami_Houses %>%
+  mutate(lat = unlist(map(Miami_Houses.centroidss$geometry,1)),
+         long = unlist(map(Miami_Houses.centroidss$geometry,2)))
+
 
 # automate the test
 
