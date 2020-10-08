@@ -384,6 +384,119 @@ Miami_Houses$mainroadsdist <- ifelse(grepl("Unioned Buffer", Miami_Houses$buffer
 # Neighborhoods
 Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
 
+# Middle schools
+miami.middleschools <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/dd2719ff6105463187197165a9c8dd5c_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.middleschools <- st_set_crs(miami.middleschools,6346)
+miami.middleschools <- miami.middleschools[,3]
+Miami_Houses <- st_join(Miami_Houses, miami.middleschools, join = st_within)
+
+# school district
+miami.schooldistricts <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/bc16a5ebcdcd4f3e83b55c5d697a0317_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.schooldistricts <- st_set_crs(miami.schooldistricts,6346)
+miami.schooldistricts <- miami.schooldistricts[,2]
+Miami_Houses <- st_join(Miami_Houses, miami.schooldistricts, join = st_within)
+
+# CDD
+miami.CDD <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/3a6112890351490faad6f75779a3d4f6_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.CDD <- st_set_crs(miami.CDD,6346)
+miami.CDD <- miami.CDD[,2]
+Miami_Houses <- st_join(Miami_Houses, miami.CDD, join = st_within)
+
+
+
+# libraries
+miami.libraries <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/ab490a5cefd04c12b6b5e53a6b60f41c_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.libraries <- st_set_crs(miami.libraries,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    library_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.libraries), 1),
+    library_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.libraries), 2))
+    
+
+# daycares
+miami.daycares <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/3ea3c3aa067549ff8f8a8ab80a3cbcbb_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.daycares <- st_set_crs(miami.daycares,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    daycare_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 1),
+    daycare_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 2),
+    daycare_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 3),
+    daycare_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 4))
+
+# Colleges
+miami.colleges <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/7db056c406b943dc8f3f377b99d77588_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.colleges <- st_set_crs(miami.colleges,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    colleges_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 1),
+    colleges_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 2),
+    colleges_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 3),
+    colleges_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 4))
+
+#  private schools
+miami.pschool <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/7fecb87ea1b1494eb2beb13906465de9_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.pschool <- st_set_crs(miami.pschool,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    pschool_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 1),
+    pschool_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 2),
+    pschool_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 3),
+    pschool_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 4))
+
+# hopsitals
+miami.hospitals <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/0067a0e8b40644f980afa23ad34c32c4_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.colleges <- st_set_crs(miami.hospitals,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    hospitals_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 1),
+    hospitals_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 2),
+    hospitals_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 3),
+    hospitals_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 4))
+
 #Census Data
 Miami_Houses <- st_join(Miami_Houses,tracts18miami, join=st_within)
 
@@ -435,6 +548,7 @@ ggplot() +
   geom_sf(data=bars, colour="red", size=.75) 
 
 # coordinates
+
 Miami_Houses.centroidss <-st_centroid(Miami_Houses)
 Miami_Houses <- Miami_Houses %>%
   mutate(lat = unlist(map(Miami_Houses.centroidss$geometry,1)),
