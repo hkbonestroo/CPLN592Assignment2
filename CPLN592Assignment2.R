@@ -110,8 +110,7 @@ Miami_Houses <- st_set_crs(Miami_Houses, 6346)
 
 
 # Miami Training Data
-'%ni%' <- Negate('%in%')
-Miami_Training <- subset(Miami_Houses, SalePrice %ni% 0)
+Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
 
 # Load census demographic data
 tracts18 <- 
@@ -214,7 +213,11 @@ Miami_Houses <-
     beachDist = st_distance(Miami_Houses.centroids, miamibeach))
 
 # pool
-Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"yes")
+Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Pool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                          ifelse(grepl("Pool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+
 
 # Load Open streets map data
 miami.base <- 
