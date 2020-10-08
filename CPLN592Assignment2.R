@@ -21,6 +21,7 @@ library(sp)
 library(tidyr)
 library(dplyr)
 library(osmdata)
+library(mapview)
 
 
 options(scipen=999)
@@ -98,6 +99,89 @@ nn_function <- function(measureFrom,measureTo,k) {
     dplyr::select(-thisPoint) %>%
     pull()}
   
+# load multiple ring buffer
+multipleRingBuffer <- function(inputPolygon, maxDistance, interval) 
+{
+  #create a list of distances that we'll iterate through to create each ring
+  distances <- seq(0, maxDistance, interval)
+  #we'll start with the second value in that list - the first is '0'
+  distancesCounter <- 2
+  #total number of rings we're going to create
+  numberOfRings <- floor(maxDistance / interval)
+  #a counter of number of rings
+  numberOfRingsCounter <- 1
+  #initialize an otuput data frame (that is not an sf)
+  allRings <- data.frame()
+  
+  #while number of rings  counteris less than the specified nubmer of rings
+  while (numberOfRingsCounter <= numberOfRings) 
+  {
+    #if we're interested in a negative buffer and this is the first buffer
+    #(ie. not distance = '0' in the distances list)
+    if(distances[distancesCounter] < 0 & distancesCounter == 2)
+    {
+      #buffer the input by the first distance
+      buffer1 <- st_buffer(inputPolygon, distances[distancesCounter])
+      #different that buffer from the input polygon to get the first ring
+      buffer1_ <- st_difference(inputPolygon, buffer1)
+      #cast this sf as a polygon geometry type
+      thisRing <- st_cast(buffer1_, "POLYGON")
+      #take the last column which is 'geometry'
+      thisRing <- as.data.frame(thisRing[,ncol(thisRing)])
+      #add a new field, 'distance' so we know how far the distance is for a give ring
+      thisRing$distance <- distances[distancesCounter]
+    }
+    
+    
+    #otherwise, if this is the second or more ring (and a negative buffer)
+    else if(distances[distancesCounter] < 0 & distancesCounter > 2) 
+    {
+      #buffer by a specific distance
+      buffer1 <- st_buffer(inputPolygon, distances[distancesCounter])
+      #create the next smallest buffer
+      buffer2 <- st_buffer(inputPolygon, distances[distancesCounter-1])
+      #This can then be used to difference out a buffer running from 660 to 1320
+      #This works because differencing 1320ft by 660ft = a buffer between 660 & 1320.
+      #bc the area after 660ft in buffer2 = NA.
+      thisRing <- st_difference(buffer2,buffer1)
+      #cast as apolygon
+      thisRing <- st_cast(thisRing, "POLYGON")
+      #get the last field
+      thisRing <- as.data.frame(thisRing$geometry)
+      #create the distance field
+      thisRing$distance <- distances[distancesCounter]
+    }
+    
+    #Otherwise, if its a positive buffer
+    else 
+    {
+      #Create a positive buffer
+      buffer1 <- st_buffer(inputPolygon, distances[distancesCounter])
+      #create a positive buffer that is one distance smaller. So if its the first buffer
+      #distance, buffer1_ will = 0. 
+      buffer1_ <- st_buffer(inputPolygon, distances[distancesCounter-1])
+      #difference the two buffers
+      thisRing <- st_difference(buffer1,buffer1_)
+      #cast as a polygon
+      thisRing <- st_cast(thisRing, "POLYGON")
+      #geometry column as a data frame
+      thisRing <- as.data.frame(thisRing[,ncol(thisRing)])
+      #add teh distance
+      thisRing$distance <- distances[distancesCounter]
+    }  
+    
+    #rbind this ring to the rest of the rings
+    allRings <- rbind(allRings, thisRing)
+    #iterate the distance counter
+    distancesCounter <- distancesCounter + 1
+    #iterate the number of rings counter
+    numberOfRingsCounter <- numberOfRingsCounter + 1
+  }
+  
+  #convert the allRings data frame to an sf data frame
+  allRings <- st_as_sf(allRings)
+}
+
 # Load census API key
 census_api_key("91a259a2aaac3093a636d189040e0ff263fc823b", overwrite = TRUE)
 
@@ -221,7 +305,44 @@ Miami_Houses <-
   mutate(
     waterDist = st_distance(Miami_Houses.centroids, miamiwater))
 
-#school districts
+# highways
+miamiHighways <-
+  rbind(st_read("tl_2019_12_prisecroads/tl_2019_12_prisecroads.shp")%>%
+          st_transform('EPSG:6346'))
+miamiHighways <- st_set_crs(miamiHighways,6346)
+highways.miami.intersect <- st_intersects(miami, miamiHighways)
+miamiHighways <- miamiHighways[highways.miami.intersect[[1]],]
+
+miamiHighwaysbuffer.125 <- 
+  rbind(
+    st_union(st_buffer(miamiHighways, 201.168)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamiHighwaysbuffer.125<-miamiHighwaysbuffer.125%>%
+  rename(buffer.125 = Legend)
+miamiHighwaysbuffer.25 <- 
+  rbind(
+    st_union(st_buffer(miamiHighways, 402.336)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamiHighwaysbuffer.25<-miamiHighwaysbuffer.25%>%
+  rename(buffer.25 = Legend)
+miamiHighwaysbuffer.5 <- 
+  rbind(
+    st_union(st_buffer(miamiHighways, 804.672)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamiHighwaysbuffer.5<-miamiHighwaysbuffer.5%>%
+  rename(buffer.5 = Legend)
+
+Miami_Houses <- st_join(Miami_Houses, miamiHighwaysbuffer.125, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamiHighwaysbuffer.25, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamiHighwaysbuffer.5, join = st_within)
+
+Miami_Houses$Highwaydist <- ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.125), Miami_Houses$Highwaydist<-".125",
+                            ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.25), Miami_Houses$Highwaydist<-".25",
+                                   ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.5), Miami_Houses$Highwaydist<-".5",Miami_Houses$Highwaydist<-"over .5")))
+
 
 # Neighborhoods
 Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
