@@ -114,18 +114,21 @@ Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
 
 # Load census demographic data
 tracts18 <- 
-  get_acs(geography = "tract", variables = c("B25026_001E","B02001_002E",
-                                            "B19013_001E","B25058_001E",
+  get_acs(geography = "tract", variables = c("B25026_001E","B02001_002E","B15001_050E",
+                                             "B15001_009E","B19013_001E","B25058_001E",
                                              "B06012_002E"), 
           year=2018, state=12, county="Miami-Dade County", geometry=T, output="wide") %>%
   st_transform('EPSG:6346')%>%
   rename(TotalPop = B25026_001E, 
          Whites = B02001_002E,
+         FemaleBachelors = B15001_050E, 
+         MaleBachelors = B15001_009E,
          MedHHInc = B19013_001E, 
          MedRent = B25058_001E,
          TotalPoverty = B06012_002E) %>%
   dplyr::select(-NAME, -starts_with("B")) %>%
-  mutate(pctWhite = ifelse(TotalPop > 0, Whites / TotalPop,0),
+  mutate(pctWhite = ifelse(TotalPop > 0, Whites / TotalPop, 0),
+         pctBachelors = ifelse(TotalPop > 0, ((FemaleBachelors + MaleBachelors) / TotalPop), 0),
          pctPoverty = ifelse(TotalPop > 0, TotalPoverty / TotalPop, 0),
          year = "2018") %>%
   dplyr::select(-Whites, -TotalPoverty) 
@@ -155,10 +158,6 @@ nhoodsmiami <-st_zm(nhoodsmiami, drop = TRUE, what = "ZM")
 nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
 nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
 
-Miami_Houses.centroids <-st_centroid(Miami_Houses)
-Miami_Houses <-
-  Miami_Houses %>%
-  mutate(neighborhood= st_join(Miami_Houses.centroids, nhoods, join = st_within)%>%st_drop_geometry())
 
 # select only miami tracts
 miami <- st_union(nhoods)
@@ -205,17 +204,32 @@ miamibeach <-
       st_transform('EPSG:6346'))
 miamibeach <- st_set_crs(nhoodsmiami, 6346)
 
-Miami_Houses.centroids <-st_centroid(Miami_Houses)
+# Neighborhoods
+Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
 
-Miami_Houses <-
-  Miami_Houses %>% 
-  mutate(
-    beachDist = st_distance(Miami_Houses.centroids, miamibeach))
+#Census Data
+Miami_Houses <- st_join(Miami_Houses,tracts18miami, join=st_within)
 
-# pool
+# house attributes
 Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
                             ifelse(grepl("Pool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
                                           ifelse(grepl("Pool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Patio <- ifelse(grepl("Patio", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Patio", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Patio", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Carport <- ifelse(grepl("Carport", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Carport", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Carport", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Whirlpool <- ifelse(grepl("Whirlpool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Whirlpool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Whirlpool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Dock <- ifelse(grepl("Dock", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Dock", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Dock", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
 
 
 
