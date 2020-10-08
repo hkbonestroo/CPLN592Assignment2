@@ -204,6 +204,25 @@ miamibeach <-
       st_transform('EPSG:6346'))
 miamibeach <- st_set_crs(nhoodsmiami, 6346)
 
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    beachDist = st_distance(Miami_Houses.centroids, miamibeach))
+
+#water
+miamiwater <-
+  rbind(st_read("Water/miamiwater.shp")%>%
+          st_transform('EPSG:6346'))
+miamiwater <- st_set_crs(miamiwater,6346)
+miamiwater <- st_union(miamiwater)
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    waterDist = st_distance(Miami_Houses.centroids, miamiwater))
+
+#school districts
+
 # Neighborhoods
 Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
 
