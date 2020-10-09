@@ -632,5 +632,75 @@ for(j in 1:length(comb2)){
   MAE.matrix[j,2]<- paste(comb2[j])
 }
 
+# automate the test
 
+vars <- c("SalePrice", "marinas_nn1","marinas_nn2","marinas_nn3","marinas_nn4","contamination_nn1",
+          "contamination_nn2","contamination_nn3","contamination_nn4","hospitals_nn1","hospitals_nn2",
+          "hospitals_nn3","hospitals_nn4","pschool_nn1","pschool_nn2","pschool_nn3","pschool_nn4","colleges_nn1",
+          "colleges_nn2","colleges_nn3","colleges_nn4","YearBuilt","LotSize","Bed","Units")
 
+N <- list(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24)
+comb <- sapply(N, function(m) combn(x=vars[2:25], m))
+
+comb2 <- list()
+k=0
+for(i in seq(comb)){
+  tmp <- comb[[i]]
+  for(j in seq(ncol(tmp))){
+    k <- k + 1
+    comb2[[k]] <- formula(paste("SalePrice", "~", paste(tmp[,j], collapse=" + ")))
+  }
+}
+
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+two <-2
+MAE.matrix <- matrix(NA, nrow = length(comb2), ncol = two)
+
+for(j in 1:length(comb2)){
+  reg.cv <- 
+    train(comb2[[j]], data=st_drop_geometry(Miami_Houses), 
+          method = "lm", trControl = fitControl, na.action = na.pass)
+  MAE.matrix[j,1]<-mean(reg.cv$resample[,3])
+  MAE.matrix[j,2]<- paste(comb2[j])
+}
+
+#automate test 3
+vars <- c("SalePrice", "AdjustedSqFt", "LotSize","YearBuilt",
+          "marina_nn2","beachDist")
+
+N <- list(1,2,3,4,5)
+comb <- sapply(N, function(m) combn(x=vars[2:6], m))
+
+comb2 <- list()
+k=0
+for(i in seq(comb)){
+  tmp <- comb[[i]]
+  for(j in seq(ncol(tmp))){
+    k <- k + 1
+    comb2[[k]] <- formula(paste("SalePrice", "~", paste(tmp[,j], collapse=" + ")))
+  }
+}
+
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+two <-2
+MAE.matrix <- matrix(NA, nrow = length(comb2), ncol = two)
+MAE.output <- data.frame()
+
+MAE.output <- data.frame(matrix(unlist(comb2), nrow=length(comb2), byrow=T),stringsAsFactors=FALSE)%>%
+  rename(comb=matrix.unlist.comb2...nrow...length.comb2...byrow...T.)
+MAE.output$MAE <-train(as.character(MAE.output$comb),data=st_drop_geometry(Miami_Houses),method = "lm",trControl=fitControl,na.action=na.pass)
+
+for(j in 1:length(comb2)){
+  reg.cv <- 
+    train(comb2[[j]], data=st_drop_geometry(Miami_Houses), 
+          method = "lm", trControl = fitControl, na.action = na.pass)
+  MAE.matrix[j,1]<-mean(reg.cv$resample[,3])
+  MAE.matrix[j,2]<- paste(comb2[j])
+}
+
+fun1 <- function(x, column){
+  train(x[[column]],data=st_drop_geometry(Miami_Houses), 
+        method = "lm", trControl = fitControl, na.action = na.pass)
+}
