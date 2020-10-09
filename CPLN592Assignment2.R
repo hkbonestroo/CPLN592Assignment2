@@ -21,6 +21,7 @@ library(sp)
 library(tidyr)
 library(dplyr)
 library(osmdata)
+library(mapview)
 
 
 options(scipen=999)
@@ -98,6 +99,89 @@ nn_function <- function(measureFrom,measureTo,k) {
     dplyr::select(-thisPoint) %>%
     pull()}
   
+# load multiple ring buffer
+multipleRingBuffer <- function(inputPolygon, maxDistance, interval) 
+{
+  #create a list of distances that we'll iterate through to create each ring
+  distances <- seq(0, maxDistance, interval)
+  #we'll start with the second value in that list - the first is '0'
+  distancesCounter <- 2
+  #total number of rings we're going to create
+  numberOfRings <- floor(maxDistance / interval)
+  #a counter of number of rings
+  numberOfRingsCounter <- 1
+  #initialize an otuput data frame (that is not an sf)
+  allRings <- data.frame()
+  
+  #while number of rings  counteris less than the specified nubmer of rings
+  while (numberOfRingsCounter <= numberOfRings) 
+  {
+    #if we're interested in a negative buffer and this is the first buffer
+    #(ie. not distance = '0' in the distances list)
+    if(distances[distancesCounter] < 0 & distancesCounter == 2)
+    {
+      #buffer the input by the first distance
+      buffer1 <- st_buffer(inputPolygon, distances[distancesCounter])
+      #different that buffer from the input polygon to get the first ring
+      buffer1_ <- st_difference(inputPolygon, buffer1)
+      #cast this sf as a polygon geometry type
+      thisRing <- st_cast(buffer1_, "POLYGON")
+      #take the last column which is 'geometry'
+      thisRing <- as.data.frame(thisRing[,ncol(thisRing)])
+      #add a new field, 'distance' so we know how far the distance is for a give ring
+      thisRing$distance <- distances[distancesCounter]
+    }
+    
+    
+    #otherwise, if this is the second or more ring (and a negative buffer)
+    else if(distances[distancesCounter] < 0 & distancesCounter > 2) 
+    {
+      #buffer by a specific distance
+      buffer1 <- st_buffer(inputPolygon, distances[distancesCounter])
+      #create the next smallest buffer
+      buffer2 <- st_buffer(inputPolygon, distances[distancesCounter-1])
+      #This can then be used to difference out a buffer running from 660 to 1320
+      #This works because differencing 1320ft by 660ft = a buffer between 660 & 1320.
+      #bc the area after 660ft in buffer2 = NA.
+      thisRing <- st_difference(buffer2,buffer1)
+      #cast as apolygon
+      thisRing <- st_cast(thisRing, "POLYGON")
+      #get the last field
+      thisRing <- as.data.frame(thisRing$geometry)
+      #create the distance field
+      thisRing$distance <- distances[distancesCounter]
+    }
+    
+    #Otherwise, if its a positive buffer
+    else 
+    {
+      #Create a positive buffer
+      buffer1 <- st_buffer(inputPolygon, distances[distancesCounter])
+      #create a positive buffer that is one distance smaller. So if its the first buffer
+      #distance, buffer1_ will = 0. 
+      buffer1_ <- st_buffer(inputPolygon, distances[distancesCounter-1])
+      #difference the two buffers
+      thisRing <- st_difference(buffer1,buffer1_)
+      #cast as a polygon
+      thisRing <- st_cast(thisRing, "POLYGON")
+      #geometry column as a data frame
+      thisRing <- as.data.frame(thisRing[,ncol(thisRing)])
+      #add teh distance
+      thisRing$distance <- distances[distancesCounter]
+    }  
+    
+    #rbind this ring to the rest of the rings
+    allRings <- rbind(allRings, thisRing)
+    #iterate the distance counter
+    distancesCounter <- distancesCounter + 1
+    #iterate the number of rings counter
+    numberOfRingsCounter <- numberOfRingsCounter + 1
+  }
+  
+  #convert the allRings data frame to an sf data frame
+  allRings <- st_as_sf(allRings)
+}
+
 # Load census API key
 census_api_key("91a259a2aaac3093a636d189040e0ff263fc823b", overwrite = TRUE)
 
@@ -110,23 +194,25 @@ Miami_Houses <- st_set_crs(Miami_Houses, 6346)
 
 
 # Miami Training Data
-'%ni%' <- Negate('%in%')
-Miami_Training <- subset(Miami_Houses, SalePrice %ni% 0)
+Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
 
 # Load census demographic data
 tracts18 <- 
-  get_acs(geography = "tract", variables = c("B25026_001E","B02001_002E",
-                                            "B19013_001E","B25058_001E",
+  get_acs(geography = "tract", variables = c("B25026_001E","B02001_002E","B15001_050E",
+                                             "B15001_009E","B19013_001E","B25058_001E",
                                              "B06012_002E"), 
           year=2018, state=12, county="Miami-Dade County", geometry=T, output="wide") %>%
   st_transform('EPSG:6346')%>%
   rename(TotalPop = B25026_001E, 
          Whites = B02001_002E,
+         FemaleBachelors = B15001_050E, 
+         MaleBachelors = B15001_009E,
          MedHHInc = B19013_001E, 
          MedRent = B25058_001E,
          TotalPoverty = B06012_002E) %>%
   dplyr::select(-NAME, -starts_with("B")) %>%
-  mutate(pctWhite = ifelse(TotalPop > 0, Whites / TotalPop,0),
+  mutate(pctWhite = ifelse(TotalPop > 0, Whites / TotalPop, 0),
+         pctBachelors = ifelse(TotalPop > 0, ((FemaleBachelors + MaleBachelors) / TotalPop), 0),
          pctPoverty = ifelse(TotalPop > 0, TotalPoverty / TotalPop, 0),
          year = "2018") %>%
   dplyr::select(-Whites, -TotalPoverty) 
@@ -156,10 +242,6 @@ nhoodsmiami <-st_zm(nhoodsmiami, drop = TRUE, what = "ZM")
 nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
 nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
 
-Miami_Houses.centroids <-st_centroid(Miami_Houses)
-Miami_Houses <-
-  Miami_Houses %>%
-  mutate(neighborhood= st_join(Miami_Houses.centroids, nhoods, join = st_within)%>%st_drop_geometry())
 
 # select only miami tracts
 miami <- st_union(nhoods)
@@ -206,15 +288,285 @@ miamibeach <-
       st_transform('EPSG:6346'))
 miamibeach <- st_set_crs(nhoodsmiami, 6346)
 
-Miami_Houses.centroids <-st_centroid(Miami_Houses)
-
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
     beachDist = st_distance(Miami_Houses.centroids, miamibeach))
 
-# pool
-Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"yes")
+#water
+miamiwater <-
+  rbind(st_read("Water/miamiwater.shp")%>%
+          st_transform('EPSG:6346'))
+miamiwater <- st_set_crs(miamiwater,6346)
+miamiwater <- st_union(miamiwater)
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    waterDist = st_distance(Miami_Houses.centroids, miamiwater))
+
+# highways
+miamiHighways <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/6d31141fd24148f0b352f341ef38d161_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miamiHighways <- st_set_crs(miamiHighways,6346)
+
+miamiHighwaysbuffer.125 <- 
+  rbind(
+    st_union(st_buffer(miamiHighways, 201.168)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamiHighwaysbuffer.125<-miamiHighwaysbuffer.125%>%
+  rename(buffer.125 = Legend)
+miamiHighwaysbuffer.25 <- 
+  rbind(
+    st_union(st_buffer(miamiHighways, 402.336)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamiHighwaysbuffer.25<-miamiHighwaysbuffer.25%>%
+  rename(buffer.25 = Legend)
+miamiHighwaysbuffer.5 <- 
+  rbind(
+    st_union(st_buffer(miamiHighways, 804.672)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamiHighwaysbuffer.5<-miamiHighwaysbuffer.5%>%
+  rename(buffer.5 = Legend)
+
+Miami_Houses <- st_join(Miami_Houses, miamiHighwaysbuffer.125, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamiHighwaysbuffer.25, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamiHighwaysbuffer.5, join = st_within)
+
+Miami_Houses$Highwaydist <- ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.125), Miami_Houses$Highwaydist<-".125",
+                            ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.25), Miami_Houses$Highwaydist<-".25",
+                                   ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.5), Miami_Houses$Highwaydist<-".5",Miami_Houses$Highwaydist<-"over .5")))
+
+#main roads
+miamimainroads <- 
+  rbind(
+    st_read("tl_2019_12_prisecroads/tl_2019_12_prisecroads.shp") %>%
+      st_transform('EPSG:6346'))
+miamimainroads <- st_set_crs(miamimainroads,6346)
+mainroads.miami.intersect <- st_intersects(miami, miamimainroads)
+miamimainroads <- miamimainroads[mainroads.miami.intersect[[1]],]
+
+miamimainroadsbuffer.125 <- 
+  rbind(
+    st_union(st_buffer(miamimainroads, 201.168)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamimainroadsbuffer.125<-miamimainroadsbuffer.125%>%
+  rename(buffer.mainroads.125 = Legend)
+miamimainroadsbuffer.25 <- 
+  rbind(
+    st_union(st_buffer(miamimainroads, 402.336)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamimainroadsbuffer.25<-miamimainroadsbuffer.25%>%
+  rename(buffer.mainroads.25 = Legend)
+miamimainroadsbuffer.5 <- 
+  rbind(
+    st_union(st_buffer(miamimainroads, 804.672)) %>%
+      st_sf() %>%
+      mutate(Legend = "Unioned Buffer"))
+miamimainroadsbuffer.5<-miamimainroadsbuffer.5%>%
+  rename(buffer.mainroads.5 = Legend)
+
+Miami_Houses <- st_join(Miami_Houses, miamimainroadsbuffer.125, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamimainroadsbuffer.25, join = st_within)
+Miami_Houses <- st_join(Miami_Houses, miamimainroadsbuffer.5, join = st_within)
+
+Miami_Houses$mainroadsdist <- ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.mainroads.125), Miami_Houses$mainroadsdist<-".125",
+                                   ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.mainroads.25), Miami_Houses$mainroadsdist<-".25",
+                                          ifelse(grepl("Unioned Buffer", Miami_Houses$buffer.mainroads.5), Miami_Houses$mainroadsdist<-".5",Miami_Houses$mainroadsdist<-"over .5")))
+
+# Neighborhoods
+Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
+
+# Middle schools
+miami.middleschools <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/dd2719ff6105463187197165a9c8dd5c_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.middleschools <- st_set_crs(miami.middleschools,6346)
+miami.middleschools <- miami.middleschools[,3]
+Miami_Houses <- st_join(Miami_Houses, miami.middleschools, join = st_within)
+
+# school district
+miami.schooldistricts <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/bc16a5ebcdcd4f3e83b55c5d697a0317_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.schooldistricts <- st_set_crs(miami.schooldistricts,6346)
+miami.schooldistricts <- miami.schooldistricts[,2]
+Miami_Houses <- st_join(Miami_Houses, miami.schooldistricts, join = st_within)
+
+# CDD
+miami.CDD <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/3a6112890351490faad6f75779a3d4f6_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.CDD <- st_set_crs(miami.CDD,6346)
+miami.CDD <- miami.CDD[,2]
+Miami_Houses <- st_join(Miami_Houses, miami.CDD, join = st_within)
+
+# police boundary
+miami.police <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/6d5ada3d95ed4cf2bedcac0b2cd9421a_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.police <- st_set_crs(miami.CDD,6346)
+miami.police <- miami.police[,2:3]
+
+Miami_Houses <- st_join(Miami_Houses, miami.police, join = st_within)
+
+
+
+# libraries
+miami.libraries <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/ab490a5cefd04c12b6b5e53a6b60f41c_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.libraries <- st_set_crs(miami.libraries,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    library_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.libraries), 1),
+    library_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.libraries), 2))
+    
+
+# daycares
+miami.daycares <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/3ea3c3aa067549ff8f8a8ab80a3cbcbb_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.daycares <- st_set_crs(miami.daycares,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    daycare_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 1),
+    daycare_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 2),
+    daycare_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 3),
+    daycare_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 4))
+
+# Colleges
+miami.colleges <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/7db056c406b943dc8f3f377b99d77588_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.colleges <- st_set_crs(miami.colleges,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    colleges_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 1),
+    colleges_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 2),
+    colleges_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 3),
+    colleges_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 4))
+
+# contaminated sites
+miami.contamination <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/43750f842b1e451aa0347a2ca34a61d7_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.contamination <- st_set_crs(miami.contamination,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    contamination_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 1),
+    contamination_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 2),
+    contamination_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 3),
+    contamination_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 4))
+
+
+#  private schools
+miami.pschool <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/7fecb87ea1b1494eb2beb13906465de9_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.pschool <- st_set_crs(miami.pschool,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    pschool_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 1),
+    pschool_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 2),
+    pschool_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 3),
+    pschool_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 4))
+
+# hopsitals
+miami.hospitals <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/0067a0e8b40644f980afa23ad34c32c4_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.hospitals <- st_set_crs(miami.hospitals,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    hospitals_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 1),
+    hospitals_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 2),
+    hospitals_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 3),
+    hospitals_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 4))
+
+# marinas
+miami.marinas <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/f65dec3bacb341f094dd5109e93c4247_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami.marinas <- st_set_crs(miami.marinas,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    marinas_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 1),
+    marinas_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 2),
+    marinas_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 3),
+    marinas_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 4))
+
+#Census Data
+Miami_Houses <- st_join(Miami_Houses,tracts18miami, join=st_within)
+
+# house attributes
+Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Pool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                          ifelse(grepl("Pool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Patio <- ifelse(grepl("Patio", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Patio", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Patio", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Carport <- ifelse(grepl("Carport", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Carport", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Carport", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Whirlpool <- ifelse(grepl("Whirlpool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Whirlpool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Whirlpool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Dock <- ifelse(grepl("Dock", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Dock", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Dock", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+
 
 # Load Open streets map data
 miami.base <- 
@@ -239,6 +591,14 @@ bars <-
 ggplot() +
   geom_sf(data=miami.base, fill="black") +
   geom_sf(data=bars, colour="red", size=.75) 
+
+# coordinates
+
+Miami_Houses.centroidss <-st_centroid(Miami_Houses)
+Miami_Houses <- Miami_Houses %>%
+  mutate(lat = unlist(map(Miami_Houses.centroidss$geometry,1)),
+         long = unlist(map(Miami_Houses.centroidss$geometry,2)))
+
 
 # automate the test
 
@@ -272,5 +632,75 @@ for(j in 1:length(comb2)){
   MAE.matrix[j,2]<- paste(comb2[j])
 }
 
+# automate the test
 
+vars <- c("SalePrice", "marinas_nn1","marinas_nn2","marinas_nn3","marinas_nn4","contamination_nn1",
+          "contamination_nn2","contamination_nn3","contamination_nn4","hospitals_nn1","hospitals_nn2",
+          "hospitals_nn3","hospitals_nn4","pschool_nn1","pschool_nn2","pschool_nn3","pschool_nn4","colleges_nn1",
+          "colleges_nn2","colleges_nn3","colleges_nn4","YearBuilt","LotSize","Bed","Units")
 
+N <- list(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24)
+comb <- sapply(N, function(m) combn(x=vars[2:25], m))
+
+comb2 <- list()
+k=0
+for(i in seq(comb)){
+  tmp <- comb[[i]]
+  for(j in seq(ncol(tmp))){
+    k <- k + 1
+    comb2[[k]] <- formula(paste("SalePrice", "~", paste(tmp[,j], collapse=" + ")))
+  }
+}
+
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+two <-2
+MAE.matrix <- matrix(NA, nrow = length(comb2), ncol = two)
+
+for(j in 1:length(comb2)){
+  reg.cv <- 
+    train(comb2[[j]], data=st_drop_geometry(Miami_Houses), 
+          method = "lm", trControl = fitControl, na.action = na.pass)
+  MAE.matrix[j,1]<-mean(reg.cv$resample[,3])
+  MAE.matrix[j,2]<- paste(comb2[j])
+}
+
+#automate test 3
+vars <- c("SalePrice", "AdjustedSqFt", "LotSize","YearBuilt",
+          "marina_nn2","beachDist")
+
+N <- list(1,2,3,4,5)
+comb <- sapply(N, function(m) combn(x=vars[2:6], m))
+
+comb2 <- list()
+k=0
+for(i in seq(comb)){
+  tmp <- comb[[i]]
+  for(j in seq(ncol(tmp))){
+    k <- k + 1
+    comb2[[k]] <- formula(paste("SalePrice", "~", paste(tmp[,j], collapse=" + ")))
+  }
+}
+
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+two <-2
+MAE.matrix <- matrix(NA, nrow = length(comb2), ncol = two)
+MAE.output <- data.frame()
+
+MAE.output <- data.frame(matrix(unlist(comb2), nrow=length(comb2), byrow=T),stringsAsFactors=FALSE)%>%
+  rename(comb=matrix.unlist.comb2...nrow...length.comb2...byrow...T.)
+MAE.output$MAE <-train(as.character(MAE.output$comb),data=st_drop_geometry(Miami_Houses),method = "lm",trControl=fitControl,na.action=na.pass)
+
+for(j in 1:length(comb2)){
+  reg.cv <- 
+    train(comb2[[j]], data=st_drop_geometry(Miami_Houses), 
+          method = "lm", trControl = fitControl, na.action = na.pass)
+  MAE.matrix[j,1]<-mean(reg.cv$resample[,3])
+  MAE.matrix[j,2]<- paste(comb2[j])
+}
+
+fun1 <- function(x, column){
+  train(x[[column]],data=st_drop_geometry(Miami_Houses), 
+        method = "lm", trControl = fitControl, na.action = na.pass)
+}
