@@ -22,7 +22,9 @@ library(tidyr)
 library(dplyr)
 library(osmdata)
 library(mapview)
-
+library(RANN)
+library(ggplot2)
+library(stargazer)
 
 options(scipen=999)
 options(tigris_class = "sf")
@@ -191,6 +193,7 @@ Miami_Houses <-
     st_read("studentsData.geojson") %>%
     st_transform(st_crs('EPSG:6346')))
 Miami_Houses <- st_set_crs(Miami_Houses, 6346)
+Miami_Houses <- distinct(Miami_Houses,  .keep_all = TRUE)
 
 
 # Miami Training Data
@@ -240,7 +243,8 @@ nhoodsmiamibeach <-nhoodsmiamibeach[1]%>%
  rename(LABEL = Name)
 nhoodsmiami <-st_zm(nhoodsmiami, drop = TRUE, what = "ZM")
 nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
-nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)
+nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)%>%
+  rename(neighborhood = LABEL)
 
 
 # select only miami tracts
@@ -268,11 +272,7 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    crime_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 1),
-    crime_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 2), 
-    crime_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 3), 
-    crime_nn4 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 4), 
-    crime_nn5 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 5)) 
+    crime_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 2)) 
 
 # crime buffer for .5 miles
 Miami_Housesbuffer <- st_buffer(Miami_Houses, 402)
@@ -286,24 +286,87 @@ miamibeach <-
   rbind(
     st_read("https://opendata.arcgis.com/datasets/d0d6e6c9d47145a0b05d6621ef29d731_0.geojson") %>%
       st_transform('EPSG:6346'))
-miamibeach <- st_set_crs(nhoodsmiami, 6346)
+miamibeach <- st_set_crs(miamibeach, 6346)
+miamibeach <- st_union(miamibeach)
+Miami_Houses.centroids <-st_centroid(Miami_Houses)
+Miami_Houses$beachDist <-st_distance(Miami_Houses.centroids, miamibeach)
+Miami_Houses$beachDist <-as.numeric(Miami_Houses$beachDist)
 
-Miami_Houses <-
-  Miami_Houses %>% 
-  mutate(
-    beachDist = st_distance(Miami_Houses.centroids, miamibeach))
-
-#water
+# load water feature
 miamiwater <-
   rbind(st_read("Water/miamiwater.shp")%>%
           st_transform('EPSG:6346'))
 miamiwater <- st_set_crs(miamiwater,6346)
+
+# add column for distance to water
+
 miamiwater <- st_union(miamiwater)
+Miami_Houses$waterDist <-st_distance(Miami_Houses.centroids, miamiwater)
+Miami_Houses$waterDist <-as.numeric(Miami_Houses$waterDist)
+
+#Parks (method 1 - Same output as other variables)
+miami_municipalparks <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/a585b193a4764760802f510f8c5b1452_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miami_municipalparks <- st_set_crs(miami_municipalparks, 6346)
+miami_municipalparks <- st_union(miami_municipalparks)
+Miami_Houses$ParksDist <- st_distance(Miami_Houses.centroids, miami_municipalparks)
+Miami_Houses$ParksDist <-as.numeric(Miami_Houses$ParksDist)
+
+#nearest neighborStarbucks
+Starbucks <- st_read("Starbucks.csv")
+Starbucks.sf <- st_as_sf(Starbucks, coords = c("Longitude", "Latitude"), crs = 4326, agr = "constant") %>% 
+  st_transform(st_crs(Miami_Houses))
+
+st_c <- st_coordinates
 
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    waterDist = st_distance(Miami_Houses.centroids, miamiwater))
+    Starbucks_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(Starbucks.sf)), 1))
+
+
+
+#Nearest golf course (returning same output as other variables)
+miamigolfcourses <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/229eeac512b043f8bf5317ec8377f151_0.geojson") %>%
+      st_transform('EPSG:6346'))
+miamigolfcourses <- st_set_crs(miamigolfcourses, 6346)
+
+miamigolfcourses <- st_union(miamigolfcourses)
+Miami_Houses$GolfCourseDist <-st_distance(Miami_Houses.centroids,miamigolfcourses)
+Miami_Houses$GolfCourseDist <-as.numeric(Miami_Houses$GolfCourseDist)
+
+#nearest neighbor metromover station (values seem to be too high)
+miami_metromover <- st_read("Metromover_Station.csv")
+miami_metromover.sf <- st_as_sf(miami_metromover, coords = c("LAT", "LON"), crs = 4326, agr = "constant") %>% 
+  st_transform(st_crs(Miami_Houses))
+
+st_c <- st_coordinates
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    Metromover_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami_metromover.sf)), 1))
+
+
+
+#nearest neighbor metro stations
+miami_metros <- st_read("MetroRailStations/Metrorail_Station.csv")
+miami_metros.sf <- st_as_sf(miami_metros, coords = c("LON","LAT"), crs = 4326, agr = "constant") %>% 
+  st_transform(st_crs(Miami_Houses))
+miami_metros.sf <- st_set_crs(miami_metros.sf, 6346)
+                               
+st_c <- st_coordinates
+
+Miami_Houses.centroids <-st_centroid(miami_metros.sf)
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    Metros_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami_metros.sf)), 1))
 
 # highways
 miamiHighways <- 
@@ -390,7 +453,7 @@ miami.middleschools <-
     st_read("https://opendata.arcgis.com/datasets/dd2719ff6105463187197165a9c8dd5c_0.geojson") %>%
       st_transform('EPSG:6346'))
 miami.middleschools <- st_set_crs(miami.middleschools,6346)
-miami.middleschools <- miami.middleschools[,3]
+miami.middleschools <- miami.middleschools[,3]%>%rename(midschool = NAME)
 Miami_Houses <- st_join(Miami_Houses, miami.middleschools, join = st_within)
 
 # school district
@@ -399,7 +462,8 @@ miami.schooldistricts <-
     st_read("https://opendata.arcgis.com/datasets/bc16a5ebcdcd4f3e83b55c5d697a0317_0.geojson") %>%
       st_transform('EPSG:6346'))
 miami.schooldistricts <- st_set_crs(miami.schooldistricts,6346)
-miami.schooldistricts <- miami.schooldistricts[,2]
+miami.schooldistricts <- miami.schooldistricts[,2]%>%
+  rename(schooldist = ID)
 Miami_Houses <- st_join(Miami_Houses, miami.schooldistricts, join = st_within)
 
 # CDD
@@ -416,7 +480,7 @@ miami.police <-
   rbind(
     st_read("https://opendata.arcgis.com/datasets/6d5ada3d95ed4cf2bedcac0b2cd9421a_0.geojson") %>%
       st_transform('EPSG:6346'))
-miami.police <- st_set_crs(miami.CDD,6346)
+miami.police <- st_set_crs(miami.police,6346)
 miami.police <- miami.police[,2:3]
 
 Miami_Houses <- st_join(Miami_Houses, miami.police, join = st_within)
@@ -435,8 +499,8 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    library_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.libraries), 1),
-    library_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.libraries), 2))
+    library_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.libraries)), 1),
+    library_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.libraries)), 2))
     
 
 # daycares
@@ -451,10 +515,7 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    daycare_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 1),
-    daycare_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 2),
-    daycare_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 3),
-    daycare_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.daycares), 4))
+    daycare_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.daycares)), 2))
 
 # Colleges
 miami.colleges <- 
@@ -468,12 +529,10 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    colleges_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 1),
-    colleges_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 2),
-    colleges_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 3),
-    colleges_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.colleges), 4))
+    colleges_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.colleges)), 3))
 
 # contaminated sites
+
 miami.contamination <- 
   rbind(
     st_read("https://opendata.arcgis.com/datasets/43750f842b1e451aa0347a2ca34a61d7_0.geojson") %>%
@@ -485,10 +544,7 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    contamination_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 1),
-    contamination_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 2),
-    contamination_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 3),
-    contamination_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.contamination), 4))
+    contamination_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.contamination)), 3))
 
 
 #  private schools
@@ -503,10 +559,7 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    pschool_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 1),
-    pschool_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 2),
-    pschool_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 3),
-    pschool_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.pschool), 4))
+    pschool_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.pschool)), 3))
 
 # hopsitals
 miami.hospitals <- 
@@ -520,10 +573,7 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    hospitals_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 1),
-    hospitals_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 2),
-    hospitals_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 3),
-    hospitals_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.hospitals), 4))
+    hospitals_nn3 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.hospitals)), 3))
 
 # marinas
 miami.marinas <- 
@@ -537,10 +587,7 @@ st_c <- st_coordinates
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
-    marinas_nn1 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 1),
-    marinas_nn2 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 2),
-    marinas_nn3 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 3),
-    marinas_nn4 = nn_function(st_c(Miami_Houses.centroids), st_c(miami.marinas), 4))
+    marinas_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.marinas)), 2))
 
 #Census Data
 Miami_Houses <- st_join(Miami_Houses,tracts18miami, join=st_within)
@@ -550,21 +597,21 @@ Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-
                             ifelse(grepl("Pool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
                                           ifelse(grepl("Pool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
 
-Miami_Houses$Patio <- ifelse(grepl("Patio", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
-                            ifelse(grepl("Patio", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
-                                   ifelse(grepl("Patio", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+Miami_Houses$Patio <- ifelse(grepl("Patio", Miami_Houses$XF1), Miami_Houses$Patio<-"yes",
+                            ifelse(grepl("Patio", Miami_Houses$XF2), Miami_Houses$Patio<-"yes",
+                                   ifelse(grepl("Patio", Miami_Houses$XF3), Miami_Houses$Patio<-"yes",Miami_Houses$Patio<-"no")))
 
-Miami_Houses$Carport <- ifelse(grepl("Carport", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
-                            ifelse(grepl("Carport", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
-                                   ifelse(grepl("Carport", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+Miami_Houses$Carport <- ifelse(grepl("Carport", Miami_Houses$XF1), Miami_Houses$Carport<-"yes",
+                            ifelse(grepl("Carport", Miami_Houses$XF2), Miami_Houses$Carport<-"yes",
+                                   ifelse(grepl("Carport", Miami_Houses$XF3), Miami_Houses$Carport<-"yes",Miami_Houses$Carport<-"no")))
 
-Miami_Houses$Whirlpool <- ifelse(grepl("Whirlpool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
-                            ifelse(grepl("Whirlpool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
-                                   ifelse(grepl("Whirlpool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+Miami_Houses$Whirlpool <- ifelse(grepl("Whirlpool", Miami_Houses$XF1), Miami_Houses$Whirlpool<-"yes",
+                            ifelse(grepl("Whirlpool", Miami_Houses$XF2), Miami_Houses$Whirlpool<-"yes",
+                                   ifelse(grepl("Whirlpool", Miami_Houses$XF3), Miami_Houses$Whirlpool<-"yes",Miami_Houses$Whirlpool<-"no")))
 
-Miami_Houses$Dock <- ifelse(grepl("Dock", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
-                            ifelse(grepl("Dock", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
-                                   ifelse(grepl("Dock", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+Miami_Houses$Dock <- ifelse(grepl("Dock", Miami_Houses$XF1), Miami_Houses$Dock<-"yes",
+                            ifelse(grepl("Dock", Miami_Houses$XF2), Miami_Houses$Dock<-"yes",
+                                   ifelse(grepl("Dock", Miami_Houses$XF3), Miami_Houses$Dock<-"yes",Miami_Houses$Dock<-"no")))
 
 
 
@@ -584,13 +631,40 @@ ggplot() +
 bars <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>% 
   add_osm_feature(key = 'amenity', value = c("bar", "pub", "restaurant")) %>%
   osmdata_sf()
+
 bars <- 
   bars$osm_points %>%
   .[miami.base,]
 
+bars <- st_transform(bars,6346)
+bars <- st_set_crs(bars,6346)
+st_c <- st_coordinates
+
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    bars_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(bars)), 2))
+
 ggplot() +
   geom_sf(data=miami.base, fill="black") +
   geom_sf(data=bars, colour="red", size=.75) 
+
+#spatial lag house size
+Miami_Houses.centroids<-st_centroid(Miami_Houses)
+coords.test <- st_centroid(st_geometry(Miami_Houses), of_largest_polygon=TRUE)
+coords <-  st_coordinates(Miami_Houses.centroids)
+neighborList <- knn2nb(knearneigh(coords.test, 5))
+spatialWeights <- nb2listw(neighborList, style="W")
+Miami_Houses$lagLot <- lag.listw(spatialWeights, Miami_Houses$LotSize)
+
+#spatial lag lot size
+Miami_Houses.centroids<-st_centroid(Miami_Houses)
+coords.test <- st_centroid(st_geometry(Miami_Houses), of_largest_polygon=TRUE)
+coords <-  st_coordinates(Miami_Houses.centroids)
+neighborList <- knn2nb(knearneigh(coords.test, 5))
+spatialWeights <- nb2listw(neighborList, style="W")
+Miami_Houses$lagSQ <- lag.listw(spatialWeights, Miami_Houses$ActualSqFt)
 
 # coordinates
 
@@ -600,13 +674,193 @@ Miami_Houses <- Miami_Houses %>%
          long = unlist(map(Miami_Houses.centroidss$geometry,2)))
 
 
+Lat/Long
+Miami_Houses.centroidss <-st_centroid(Miami_Houses)
+Miami_Houses <- Miami_Houses %>%
+  mutate(lat = unlist(map(Miami_Houses.centroidss$geometry,1)),
+         long = unlist(map(Miami_Houses.centroidss$geometry,2)))
+
+
+# training data
+Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
+
+#categorical variabls
+Miami_Training <-st_drop_geometry(Miami_Training) 
+Miami_Training %>% 
+  dplyr::select(SalePrice, Pool,Patio,Carport,Whirlpool,Dock) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+  ggplot(aes(Value, SalePrice)) +
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+  facet_wrap(~Variable, ncol = 1, scales = "free") +
+  labs(title = "Price as a function of House Attributes", y = "Mean_Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
+Miami_Training %>% 
+  dplyr::select(SalePrice, neighborhood) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+  ggplot(aes(Value, SalePrice)) +
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+  facet_wrap(~Variable, ncol = 1, scales = "free") +
+  labs(title = "Price as a function of Neighborhood", y = "Mean_Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
+Miami_Training %>% 
+  dplyr::select(SalePrice, Highwaydist) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+  ggplot(aes(Value, SalePrice)) +
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+  facet_wrap(~Variable, ncol = 1, scales = "free") +
+  labs(title = "Price as a function of Distance to Highway", y = "Mean_Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
+
+Miami_Training %>% 
+  dplyr::select(SalePrice, schooldist,midschool) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+  ggplot(aes(Value, SalePrice)) +
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+  facet_wrap(~Variable, ncol = 1, scales = "free") +
+  labs(title = "Price as a function of School Boundaries", y = "Mean_Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
+Miami_Training %>% 
+  dplyr::select(SalePrice, Zoning) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+  ggplot(aes(Value, SalePrice)) +
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+  facet_wrap(~Variable, ncol = 1, scales = "free") +
+  labs(title = "Price as a function of School Boundaries", y = "Mean_Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
+Miami_Training %>% 
+  dplyr::select(SalePrice, Zoning) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+  ggplot(aes(Value, SalePrice)) +
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+  facet_wrap(~Variable, ncol = 1, scales = "free") +
+  labs(title = "Price as a function of School Boundaries", y = "Mean_Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
+
+Miami_Training_numeric<-Miami_Training[,c("Folio", "SalePrice","Property.City","Zoning","Bed","LotSize",
+         "Bath","YearBuilt","Stories","XF1","XF2", "XF3","LivingSqFt", "ActualSqFt",
+         "toPredict","PricePerSq",
+         "crime_nn2",            
+         "beachDist",            "waterDist" ,         "GolfCourseDist",        "Metros_nn1",           
+         "Highwaydist"   ,        "neighborhood" ,         "midschool"  ,          
+         "schooldist" ,          "daycare_nn2"  ,         "colleges_nn3",        
+         "contamination_nn3",    "pschool_nn3",          "hospitals_nn3",        
+         "marinas_nn2",           "GEOID" ,                          
+              "MedHHInc",            
+         "MedRent",               "pctWhite",              "pctBachelors",         
+         "pctPoverty",            "year",                 "Pool",                 
+         "Patio",                "Carport",               "Whirlpool",            
+         "Dock" ,                          "lagLot" ,              
+         "lagSQ")]
+numericVars <- 
+  select_if(Miami_Training_numeric, is.numeric) %>% na.omit()
+
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+  labs(title = "Correlation across numeric variables") 
+
+
+
+reg1 <- lm(SalePrice ~ ., data = Miami_Training %>% 
+             dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
+                           Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+                           marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
+                           colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood,
+                           Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+                           crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning))
+
+#(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
+#Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+#marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
+#colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood,
+#Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+#crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning)
+#nearest neighbor
+
+
+Miami_Houses.centroids<-st_centroid(Miami_Houses)
+coords.test <- st_centroid(st_geometry(Miami_Houses), of_largest_polygon=TRUE)
+coords <-  st_coordinates(Miami_Houses.centroids)
+neighborList <- knn2nb(knearneigh(coords.test, 5))
+spatialWeights <- nb2listw(neighborList, style="W")
+Miami_Houses$lagPrice <- lag.listw(spatialWeights, Miami_Houses$SalePrice)
+
+#Create Walkscore
+Miami_Houses <- Miami_Houses %>%
+ 
+WalkScore = getWS(2848967,579756.3,"a0a34de0dd2261f99677763bb3861e33")
+Miami_Houses <-sapply(Miami_Houses$long,Miami_Houses$lat,"a0a34de0dd2261f99677763bb3861e33",getWS())
+
+mapview(Miami_Houses)
+
+# internal characteristics
+Miami_Training_internal<-Miami_Training[,c("Bed","LotSize",
+                                          "Bath","YearBuilt","Stories","ActualSqFt",
+                                          
+                                                     
+                                                "Pool",                 
+                                          "Patio",                "Carport",               "Whirlpool",            
+                                          "Dock")]
+# amenities characteristics
+Miami_Training_spatial<-Miami_Training[,c("Property.City","Zoning",
+                                           
+                                      
+                                           "crime_nn2",            
+                                                    
+                                                  "neighborhood" ,                   
+                                                 
+                                           "contamination_nn3",           
+                                                                     
+                                           "MedHHInc",            
+                                           "MedRent",               "pctWhite",              "pctBachelors",         
+                                           "pctPoverty",                                           "lagLot" ,              
+                                           "lagSQ")]
+
+# amenities characteristics
+Miami_Training_amenities<-Miami_Training[,c(
+                                                 
+                                           "beachDist",            "waterDist" ,         "GolfCourseDist",        "Metros_nn1",           
+                                           "Highwaydist"   ,                "midschool"  ,          
+                                           "schooldist" ,          "daycare_nn2"  ,         "colleges_nn3",        
+                                           "pschool_nn3",          "hospitals_nn3",        
+                                           "marinas_nn2"          )]
+
+stargazer(output, output2, type = "html", add.lines = list(c("Fixed effects?", "No", "No"),c("Results believable?", "Maybe", "Try again later")))
+table1 <-stargazer(Miami_Training_internal)
+t1 <- stargazer(
+  Miami_Training_internal, type = "text",
+  summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd")
+)
+t1
+
+
 # automate the test
 
-vars <- c("SalePrice", "AdjustedSqFt", "LotSize","YearBuilt",
-          "crime_nn2","beachDist")
+vars <- c("SalePrice","lagSQ","lagLot","Dock","Whirlpool","Carport",
+          "Pool","pctPoverty","MedRent",
+          "marinas_nn2","hospitals_nn3","pschool_nn3",
+          "daycare_nn2","midschool","neighborhood",
+          "Highwaydist","Metros_nn1","waterDist","beachDist",
+          "crime_nn2","ActualSqFt","YearBuilt","Stories","Bath","Bed","LotSize","Zoning")
+          
 
-N <- list(1,2,3,4,5)
-comb <- sapply(N, function(m) combn(x=vars[2:6], m))
+N <- list(1,2,3,4,5,6,7,8,9,10,11,12,13,14,14,16,17,18,19,20,21,22,23,24,25,26)
+comb <- sapply(N, function(m) combn(x=vars[2:27], m))
 
 comb2 <- list()
 k=0
@@ -625,9 +879,8 @@ MAE.matrix <- matrix(NA, nrow = length(comb2), ncol = two)
 
 for(j in 1:length(comb2)){
   reg.cv <- 
-    train(comb2[[j]], data=st_drop_geometry(Miami_Houses), 
+    train(comb2[[j]], data=Miami_Training, 
           method = "lm", trControl = fitControl, na.action = na.pass)
-  MAE.output$MAE <- mean(reg.cv$resample[,3])
   MAE.matrix[j,1]<-mean(reg.cv$resample[,3])
   MAE.matrix[j,2]<- paste(comb2[j])
 }
@@ -704,3 +957,12 @@ fun1 <- function(x, column){
   train(x[[column]],data=st_drop_geometry(Miami_Houses), 
         method = "lm", trControl = fitControl, na.action = na.pass)
 }
+
+
+neighborhoodtable <-table(Miami_Training$Pool)
+
+ggplot(data.frame(Miami_Training$Zoning), aes(x=Miami_Training$Zoning)) +
+  geom_bar()+
+  labs(title = "Frequency of Zoning", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  plotTheme()
