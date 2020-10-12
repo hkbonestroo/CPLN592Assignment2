@@ -966,3 +966,48 @@ ggplot(data.frame(Miami_Training$Zoning), aes(x=Miami_Training$Zoning)) +
   labs(title = "Frequency of Zoning", y = "Count") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   plotTheme()
+
+
+#test
+
+#create training data
+Miami_Houses$Bed <-factor(Miami_Houses$Bed)
+Miami_Houses$Bath <-factor(Miami_Houses$Bath)
+Miami_Houses$Stories<-factor(Miami_Houses$Stories)
+Miami_Houses$neighborhood<-factor(Miami_Houses$neighborhood)
+Miami_Houses$Hiqhwaydist <-factor(Miami_Houses$Highwaydist)
+Miami_Houses$Pool <-factor(Miami_Houses$Pool)
+Miami_Houses$Patio <-factor(Miami_Houses$Patio)
+Miami_Houses$Dock <-factor(Miami_Houses$Dock)
+Miami_Houses$Carport <-factor(Miami_Houses$Carport)
+Miami_Houses$Whirlpool <-factor(Miami_Houses$Whirlpool)
+Miami_Houses$schooldist <-factor(Miami_Houses$schooldist)
+Miami_Houses$midschool <-factor(Miami_Houses$midschool)
+
+
+Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
+
+#create test data
+
+`%nin%` = Negate(`%in%`)
+Miami_Test <- subset(Miami_Houses,toPredict %nin% 0)
+
+
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                     dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,
+                                   Pool,pctPoverty,MedRent,neighborhood,
+                                   marinas_nn2,hospitals_nn3,pschool_nn3,
+                                   daycare_nn2,midschool,
+                                   Highwaydist,Metros_nn1,waterDist,beachDist,
+                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning
+                                   ))
+Miami_Test <-
+  Miami_Test %>%
+  mutate(SalePrice.Predict = predict(reg.training, Miami_Test),
+         SalePrice.Error = SalePrice.Predict - SalePrice,
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
+         SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
+  filter(SalePrice < 5000000)
+
+mean(Miami_Test$SalePrice.AbsError, na.rm = T)
+mean(Miami_Test$SalePrice.APE, na.rm = T)
