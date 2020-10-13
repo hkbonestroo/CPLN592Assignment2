@@ -569,7 +569,28 @@ Miami_Training$ID <- 1:1819
 f<- Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]
 Miami_Test$Price1 <-apply(Miami_Test, 1, f)   
 Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]Miami_Test$Price1 <-Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]
-Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]
+
+
+price <- function(data) {
+  price1<-Miami_Training$SalePrice[Miami_Training$ID==data]
+  return(price1)
+}
+
+Miami_Test$price1 <- lapply(Miami_Test$nnHouse1,price)
+Miami_Test$price2 <- lapply(Miami_Test$nnHouse2,price)
+Miami_Test$price3 <- lapply(Miami_Test$nnHouse3,price)
+Miami_Test$price4 <- lapply(Miami_Test$nnHouse4,price)
+Miami_Test$price5 <- lapply(Miami_Test$nnHouse5,price)
+
+Miami_Test$price1 <- as.numeric(Miami_Test$price1)
+Miami_Test$price2 <- as.numeric(Miami_Test$price2)
+Miami_Test$price3 <- as.numeric(Miami_Test$price3)
+Miami_Test$price4 <- as.numeric(Miami_Test$price4)
+Miami_Test$price5 <- as.numeric(Miami_Test$price5)
+Miami_Test$SalePriceAvg <- (Miami_Test$price1 +Miami_Test$price2+Miami_Test$price3+Miami_Test$price4+Miami_Test$price5)/5
+for(j in 1:length(Miami_Test)){
+  Miami_Test$Price1<-Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1[j]]}
+
 rownames(N) <- Miami_TestPPP$Folio
 NXY <- nncross(st_centroid(Miami_Test), st_centroid(Miami_Training), k=3)
 
