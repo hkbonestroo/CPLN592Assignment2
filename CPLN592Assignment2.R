@@ -100,7 +100,44 @@ nn_function <- function(measureFrom,measureTo,k) {
     arrange(as.numeric(thisPoint)) %>% 
     dplyr::select(-thisPoint) %>%
     pull()}
-  
+
+#load nn 2 functon
+nn_function2 <- function(measureFrom,measureTo,k) { 
+  measureFrom_Matrix <- as.matrix(measureFrom)
+  measureTo_Matrix <- as.matrix(measureTo)
+  nn <-   
+    get.knnx(measureTo, measureFrom, k)$nn.dist
+  output <-
+    as.data.frame(nn) %>%
+    rownames_to_column(var = "thisPoint") %>%
+    gather(points, point_distance, V1:ncol(.)) %>%
+    arrange(as.numeric(thisPoint)) %>%
+    group_by(thisPoint) %>%
+    summarize(house = mean(Miami_Houses$SalePrice)) %>%
+    arrange(as.numeric(thisPoint)) %>% 
+    dplyr::select(-thisPoint) %>%
+    pull()}
+
+#function 4
+nn_function2 <- function(measureFrom,measureTo,k) { 
+  measureFrom_Matrix <- as.matrix(measureFrom)
+  measureTo_Matrix <- as.matrix(measureTo)
+  nn <-   
+    get.knnx(measureTo, measureFrom, k)$nn.dist
+  output <-
+    as.data.frame(nn) %>%
+    rownames_to_column(var = "thisPoint") %>%
+    gather(points, point_distance, V1:ncol(.)) %>%
+    arrange(as.numeric(thisPoint)) %>%
+    group_by(thisPoint) %>%
+    summarize(house = mean(Miami_Houses$SalePrice))}
+
+#function 3
+nn_function3 <- function(measureFrom,measureTo,k) { 
+  measureFrom_Matrix <- as.matrix(measureFrom)
+  measureTo_Matrix <- as.matrix(measureTo)
+  nn <-   
+    get.knnx(measureTo, measureFrom, k)$nn.dist }
 # load multiple ring buffer
 multipleRingBuffer <- function(inputPolygon, maxDistance, interval) 
 {
@@ -273,7 +310,23 @@ Miami_Houses <-
   Miami_Houses %>% 
   mutate(
     crime_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miamicrime)), 2)) 
+library(sp)
+library(SearchTrees)
 
+## Example data
+set.seed(1)
+distance <- gDistance(Miami_Test,Miami_Houses)
+
+## Find indices of the two nearest points in A to each of the points in B
+tree <- createTree(coordinates(A))
+inds <- knnLookup(tree, newdat=coordinates(B), k=2)
+
+
+Miami_Test <-
+  Miami_Test %>% 
+  mutate(
+    houses_nn7 = nn_function2(st_c(st_centroid(Miami_Test)), st_c(st_centroid(Miami_Training)), 2))
+houses_nn5 <- nn_function3(st_c(st_centroid(Miami_Test)), st_c(st_centroid(Miami_Training)), 2)
 # crime buffer for .5 miles
 Miami_Housesbuffer <- st_buffer(Miami_Houses, 402)
 crime_in_buffer <- st_join(miamicrime, Miami_Housesbuffer, join = st_within)
@@ -501,7 +554,25 @@ Miami_Houses <-
   mutate(
     library_nn1 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.libraries)), 1),
     library_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.libraries)), 2))
-    
+
+Miami_TestPPP <-as.ppp(st_centroid(Miami_Test))
+Miami_TrainingPPP<-as.ppp(st_centroid(Miami_Training))
+N <- nncross(st_centroid(Miami_Test), st_centroid(Miami_Training), what="which",k=1)   
+
+#important!
+Miami_Test$nnHouse1 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=1)
+Miami_Test$nnHouse2 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=2)
+Miami_Test$nnHouse3 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=3)
+Miami_Test$nnHouse4 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=4)
+Miami_Test$nnHouse5 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=5)
+Miami_Training$ID <- 1:1819
+f<- Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]
+Miami_Test$Price1 <-apply(Miami_Test, 1, f)   
+Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]Miami_Test$Price1 <-Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]
+Miami_Training$SalePrice[Miami_Training$ID==Miami_Test$nnHouse1]
+rownames(N) <- Miami_TestPPP$Folio
+NXY <- nncross(st_centroid(Miami_Test), st_centroid(Miami_Training), k=3)
+
 
 # daycares
 miami.daycares <- 
@@ -649,6 +720,16 @@ Miami_Houses <-
 ggplot() +
   geom_sf(data=miami.base, fill="black") +
   geom_sf(data=bars, colour="red", size=.75) 
+
+#spatial lag house value
+Miami_Houses$SalePriceLag<-ifelse(Miami_Houses$SalePrice==0, Miami_Houses$SalePriceLag<-NA, Miami_Houses$SalePriceLag <-Miami_Houses$SalePrice)
+Miami_Houses.centroids<-st_centroid(Miami_Houses)
+coords.test <- st_centroid(st_geometry(Miami_Houses), of_largest_polygon=TRUE)
+coords <-  st_coordinates(Miami_Houses.centroids)
+neighborList <- knn2nb(knearneigh(coords.test, 5))
+spatialWeights <- nb2listw(neighborList, style="W")
+Miami_Houses$lagPrice <- lag.listw(spatialWeights, Miami_Houses$SalePrice)
+
 
 #spatial lag house size
 Miami_Houses.centroids<-st_centroid(Miami_Houses)
