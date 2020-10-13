@@ -685,6 +685,7 @@ Miami_Houses <-
 Miami_Houses <- st_join(Miami_Houses,tracts18miami, join=st_within)
 
 # house attributes
+
 Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
                             ifelse(grepl("Pool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
                                           ifelse(grepl("Pool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
@@ -850,23 +851,18 @@ Miami_Training %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   plotTheme()
 
-Miami_Training_numeric<-Miami_Training[,c("Folio", "SalePrice","Property.City","Zoning","Bed","LotSize",
-         "Bath","YearBuilt","Stories","XF1","XF2", "XF3","LivingSqFt", "ActualSqFt",
-         "toPredict","PricePerSq",
-         "crime_nn2",            
-         "beachDist",            "waterDist" ,         "GolfCourseDist",        "Metros_nn1",           
-         "Highwaydist"   ,        "neighborhood" ,         "midschool"  ,          
-         "schooldist" ,          "daycare_nn2"  ,         "colleges_nn3",        
-         "contamination_nn3",    "pschool_nn3",          "hospitals_nn3",        
-         "marinas_nn2",           "GEOID" ,                          
-              "MedHHInc",            
-         "MedRent",               "pctWhite",              "pctBachelors",         
-         "pctPoverty",            "year",                 "Pool",                 
-         "Patio",                "Carport",               "Whirlpool",            
-         "Dock" ,                          "lagLot" ,              
-         "lagSQ")]
+Miami_Training_numeric<-Miami_Training[,c("Folio","SalePrice","Property.Zip","Year","Zoning", "LotSize","Bed","Bath","Stories", "YearBuilt",                 
+                                                            "ActualSqFt", "neighborhood", "TotalPop", "FemaleBachelors","MaleBachelors","MedHHInc",             
+                                           "MedRent","pctWhite","pctBachelors","pctPoverty", "crime_nn2","Pool", "Patio",               
+                                           "Carport", "Whirlpool","Dock", "beachDist","waterDist" , "ParksDist" ,"Starbucks_nn1", "GolfCourseDist",       
+                                           "Metros_nn1","Highwaydist","midschool","schooldist", "geometry","daycare_nn2","colleges_nn3", "contamination_nn3","pschool_nn3",          
+                                           "hospitals_nn3","marinas_nn2","bars_nn2", "lagSQ", "lagLot","SalePriceAvg"  )]
+
+
 numericVars <- 
   select_if(Miami_Training_numeric, is.numeric) %>% na.omit()
+numericVars <-st_drop_geometry(numericVars)
+cor(numericVars)
 
 ggcorrplot(
   round(cor(numericVars), 1), 
@@ -878,6 +874,38 @@ ggcorrplot(
 
 
 
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                     dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
+                                   Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+                                   marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
+                                   colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood,SalePriceAvg,
+                                   Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning
+                     ))
+
+reg.training2 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                     dplyr::select(SalePrice,lagSQ,SalePrice,lagSQ,Dock,Whirlpool,Carport,Patio,
+                                   Pool,MedHHInc,
+                                   hospitals_nn3,contamination_nn3,
+                                   daycare_nn2,midschool,neighborhood,
+                                   Highwaydist,
+                                   crime_nn2,ActualSqFt,YearBuilt,Stories,LotSize,Zoning,SalePriceAvg
+                     ))
+#SalePrice,lagSQ,Dock,Whirlpool,Carport,Patio,
+#Pool,MedHHInc,
+#hospitals_nn3,contamination_nn3,
+#daycare_nn2,midschool,neighborhood,
+#Highwaydist,
+#crime_nn2,ActualSqFt,YearBuilt,Stories,LotSize,Zoning,SalePriceAvg
+
+reg.training3 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,lagSQ,Dock,Whirlpool,Carport,Patio,
+                                    Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+                                    marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
+                                    colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood,SalePriceAvg,
+                                    Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+                                    crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning
+                      ))
 reg1 <- lm(SalePrice ~ ., data = Miami_Training %>% 
              dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
                            Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
@@ -950,19 +978,40 @@ t1 <- stargazer(
 )
 t1
 
+# important training!
+inTrain <- createDataPartition(
+  y = paste(Miami_Training$neighborhood), 
+  p = .60, list = FALSE)
+Miami.training <- Miami_Training[inTrain,] 
+Miami.test <- Miami_Training[-inTrain,]  
+
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                     dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
+                                   Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+                                   marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
+                                   colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood2,SalePriceAvg,
+                                   Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning))
+
+Miami.test <-
+  Miami.test %>%
+  mutate(SalePrice.Predict = predict(reg.training, Miami.test),
+         SalePrice.Error = SalePrice.Predict - SalePrice,
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
+         SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
+  filter(SalePrice < 5000000)
+
+mean(Miami.test$SalePrice.AbsError, na.rm = T)
+
+mean(Miami.test$SalePrice.APE, na.rm = T)
 
 # automate the test
 
-vars <- c("SalePrice","lagSQ","lagLot","Dock","Whirlpool","Carport",
-          "Pool","pctPoverty","MedRent",
-          "marinas_nn2","hospitals_nn3","pschool_nn3",
-          "daycare_nn2","midschool","neighborhood",
-          "Highwaydist","Metros_nn1","waterDist","beachDist",
-          "crime_nn2","ActualSqFt","YearBuilt","Stories","Bath","Bed","LotSize","Zoning")
+vars <- c("SalePrice","lagSQ","neighborhood","Dock","ActualSqFt","YearBuilt","LotSize","Zoning","SalePriceAvg")
           
 
-N <- list(1,2,3,4,5,6,7,8,9,10,11,12,13,14,14,16,17,18,19,20,21,22,23,24,25,26)
-comb <- sapply(N, function(m) combn(x=vars[2:27], m))
+N <- list(1,2,3,4,5,6,7,8)
+comb <- sapply(N, function(m) combn(x=vars[2:9], m))
 
 comb2 <- list()
 k=0

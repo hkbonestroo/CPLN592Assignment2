@@ -172,9 +172,18 @@ nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
 nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)%>%
   rename(neighborhood = LABEL)
 
+
 # Create column with neighborhoods name
 
 Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
+
+# fix limited data nhoods
+
+Miami_Houses$neighborhood2 <- ifelse(grepl("East Grove", Miami_Houses$neighborhood),Miami_Houses$neighborhood2<-"North Grove",
+                                     ifelse(grepl("Bird Grove West", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"Bird Grove East",
+                                            ifelse(grepl("Bay Heights", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
+                                                  ifelse(grepl("Vizcaya", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
+                                                   ifelse(grepl("Fair Isle", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",Miami_Houses$neighborhood2<-Miami_Houses$neighborhood)))))
 
 # Load demographic data from ACS
 
@@ -558,7 +567,7 @@ neighborList <- knn2nb(knearneigh(coords.test, 5))
 spatialWeights <- nb2listw(neighborList, style="W")
 Miami_Houses$lagLot <- lag.listw(spatialWeights, Miami_Houses$LotSize)
 
-#create training data
+# create training data
 
 Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
 
@@ -625,15 +634,12 @@ Miami_Training$price5 <- as.numeric(Miami_Training$price5)
 
 Miami_Training$SalePriceAvg <- (Miami_Training$price1+Miami_Training$price2+Miami_Training$price3+Miami_Training$price4+Miami_Training$price5)/5
 
+
 ```
 
 
 ```{r Create Training data, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=0.5}
-# specifying factors
 
-Miami_Houses$Bed <-is.factor(Miami_Houses$Bed)
-Miami_Houses$Bath <-is.factor(Miami_Houses$Bath)
-Miami_Houses$Stories<-is.factor(Miami_Houses$Stories)
 
 #Labels
 
@@ -661,16 +667,6 @@ Miami_Houses = apply_labels(Miami_Houses,
                       waterDist = "Dist to Water (m)",
                       beachDist = "Dist to Beach (m)",
                       crime_nn2 = "Crimes (nn2 m)")
-
-#create training data
-
-Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
-
-#create test data
-
-`%nin%` = Negate(`%in%`)
-Miami_Test <- subset(Miami_Houses,toPredict %nin% 0)
-
 
 
 # internal characteristics
