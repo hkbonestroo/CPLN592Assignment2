@@ -26,11 +26,7 @@ table, td, th {
 
 ***
 # 1.1 Introduction
-In order to better factor in local intelligence, our team was tasked with building a better predictive model of home prices for Miami, Florida. Using data gathered from online open data resources and OLS regression, we created a model that predicted sale prices. We attempted to minimize average error and create a model that is both accurate and generalizable across space. While we initially collected many variables, we found that a simple model including only four features was better able to predict sale prices. This is because our models with many features included colinear features, and thus, was overfitted. By including neighborhood and the average sale price of surrounding homes, we were able to better predict sale prices across neighborhoods and within neighborhoods. 
-
-# 1.2 Data 
-## Features
-While our final model only includes the features of neighborhood, zoning class, average sale price of the five nearest homes, and dock, we began by collecting as many features as we could find. We found data for our features from online open data sources, including the [Miami-Dade County Open Data Hub](https://gis-mdc.opendata.arcgis.com/). We also engineered features from within the housing data we were given. Our original features included everything from distance to the beach to school district. After thorough analysis, we narrowed our features down to the final four included the in the model. Our features are split between internal characteristics, amenities/public services, and spatial structures. 
+In order to better factor in local intelligence, our team was tasked with building a better predictive model of home prices for Miami, Florida (Miami Beach was also included, but for brevity the combined municipalities will be referred to as Miami). Using data gathered from online open data resources and OLS regression, we created a model that predicted sale prices. We attempted to minimize average error and create a model that is both accurate and generalizable across space. While we initially collected many variables, we found that a simple model including only four features was best able to predict sale prices. This is because our models with many features included colinear features, and thus, were overfitted. By including neighborhood and the average sale price of surrounding homes, we were able to better predict sale prices across neighborhoods and, importantly, within neighborhoods. The following map depicts the the distribution of sale prices of the provided homes across Miami.
 
 ```{r setup, results='hide', error=FALSE, message=FALSE, warning=FALSE}
 setwd("C:/Users/Hannah/Documents/Penn/Fall 2020/CPLN-592/Assignments/Assignment 2/CPLN592Assignment2")
@@ -609,8 +605,31 @@ Miami_Training$price5 <- as.numeric(Miami_Training$price5)
 
 Miami_Training$SalePriceAvg <- (Miami_Training$price1+Miami_Training$price2+Miami_Training$price3+Miami_Training$price4+Miami_Training$price5)/5
 
+Miami_TrainingGeom <- Miami_Training
+```
+
+```{r Miami Sale Price distribution, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+
+
+# Plot distribution of sale prices over neighborhoods
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data = Miami_Training, aes(colour = q5(SalePrice)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette5,
+                      labels=qBr(Miami_Training,"SalePrice"),
+                      name="Quintile\nBreaks") +
+  labs(title="Sale Price",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.1.1") +
+  mapTheme()
 
 ```
+
+# 1.2 Data 
+## Features
+While our final model only includes the features of neighborhood, zoning class, average sale price of the five nearest homes, and dock, we began by collecting as many features as we could find. We found data for our features from online open data sources, including the [Miami-Dade County Open Data Hub](https://gis-mdc.opendata.arcgis.com/). We also engineered features from within the housing data we were given. Our original features included everything from distance to the beach to school district. After thorough analysis, we narrowed our features down to the final four included the in the model. Our features are split between internal characteristics, amenities/public services, and spatial structures. 
+
 
 
 ```{r Create Training data, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=0.5}
@@ -732,7 +751,7 @@ stargazer(
                 table.placement = "H")
 ```
 
-### Correlation Matrix
+## Correlations
 
 We created a correlation matrix to examine the correlations between our features. If two features are strongly correlated with each other, it means that they are colinear. Collinearity creates a bad model, because if both correlated features are put into the regression, one will be insignificant. We found that while lagLot and lagSQ were the only two features strongly correlated with each other (r > .8), many other features were moderately correlated. We carefully examined these correlations, as well as each feature's correlation with Sale Price to decide which features to use in our model.
 
@@ -765,26 +784,83 @@ Figure1.1 <- ggcorrplot(
   colors = c("#FA7800","white","#25CB10"),
   type="lower",
   insig = "blank") +  
-  labs(title = "Correlation across numeric variables", caption = "Figure 1.1") 
+  labs(title = "Correlation across numeric variables", caption = "Figure 1.2.1") 
 
 
 plot(Figure1.1)
 ```
 
-```{r Correlation scatter plots, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5}
+The feature with strongest statistically significant correlation to sale price was the actual square foot of the home with a correlation coefficient of .88. Other features with strong correlations to sale price include SalePriceAvg (r=.76),LotSize (r=.71), and lagSQ (r=.65). Some of the next strongest positive correlations include daycare_nn2 (r=.45) and MedHHInc (r=.41). These relationships can be explored through the following scatterplots. 
 
-st_drop_geometry(boston.sf) %>% 
-  mutate(Age = 2015 - YR_BUILT) %>%
-  dplyr::select(SalePrice, LivingArea, Age, GROSS_AREA) %>%
-  filter(SalePrice <= 1000000, Age < 500) %>%
+```{r Correlation scatter plots, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
+st_drop_geometry(Miami_Training) %>% 
+  dplyr::select(SalePrice, ActualSqFt, SalePriceAvg, daycare_nn2, MedHHInc) %>%
+  filter(SalePrice <= 1000000) %>%
   gather(Variable, Value, -SalePrice) %>% 
    ggplot(aes(Value, SalePrice)) +
      geom_point(size = .5) + geom_smooth(method = "lm", se=F, colour = "#FA7800") +
      facet_wrap(~Variable, ncol = 3, scales = "free") +
-     labs(title = "Price as a function of continuous variables") +
+     labs(title = "Price as a function of continuous variables", caption= "Figure 1.2.2") +
      plotTheme()
 
 ```
+These plots suggest a positive correlation exists. In all four plot, the regression line slopes upward, showing that as the variables increase, so does sale price. Many of our features we selected were not numerical, so they cannot be depicted with scatter plots. Instead, we examined the relationship between these features and the sale price using bar charts.
+
+```{r Correlation bar charts, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5,fig.width=10}
+
+st_drop_geometry(Miami_TrainingGeom) %>% 
+  dplyr::select(SalePrice, Zoning, midschool, Dock, neighborhood) %>%
+  filter(SalePrice <= 1000000) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+   ggplot(aes(Value, SalePrice)) +
+     geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+     facet_wrap(~Variable, ncol = 1, scales = "free") +
+     labs(title = "Price as a function of categorical variables", y = "Mean_Price",caption="Figure 1.2.3") +
+     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+     plotTheme()
+
+```
+Maps can also be used to examine the relationship between features and sale price. By comparing maps with each other interesting patterns that inform the creation of the model can appear. 
+
+```{r Miami Maps, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+
+
+# Plot zoning
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data = Miami_TrainingGeom, aes(colour = Zoning), 
+          show.legend = "point", size = .75) +
+  labs(title="Zoning Classes",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.2.4") +
+  mapTheme()
+
+#plot Dock
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data = Miami_TrainingGeom, aes(colour = Dock), 
+          show.legend = "point", size = .75) +
+  labs(title="Properties with Docks",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.2.5") +
+  mapTheme()
+
+# Plot distribution of sale prices over neighborhoods
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data = Miami_TrainingGeom, aes(colour = q5(daycare_nn2)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette5,
+                      labels=qBr(Miami_TrainingGeom,"daycare_nn2"),
+                      name="Quintile\nBreaks") +
+  labs(title="Average distance (m) to two nearest daycare center",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.2.6") +
+  mapTheme()
+```
+
+Figure 1.2.5 shows that not surprisingly, homes with docks are clustered near the shore and are especially prevalent in Miami Beach. Figures 1.2.4 and Figures 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning becomes apparent. It looks like daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. For the most zoning tends to change along neighborhood lines. 
 
 ```{r submarket plots2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 Yes = {'Yes';'No'};
