@@ -978,6 +978,92 @@ t1 <- stargazer(
 )
 t1
 
+#labels
+
+#Labels
+
+Miami_Houses = apply_labels(Miami_Houses,
+                            ActualSqFt = "Square Feet",
+                            YearBuilt = "Year Built",
+                            Stories = "Stories",
+                            Bath = "Baths",
+                            Bed = "Beds",
+                            LotSize = "Lot Size",
+                            Zoning = "Zoning Category",
+                            bars = "Bars(nn2 m)",
+                            marinas_nn2 = "Marinas(nn2 m)",
+                            pschool_nn3 = "Private Schools(nn3 m)",
+                            contamination_nn3= "Contamination Sites(nn3 m)",
+                            colleges_nn3 = "Colleges(nn3 m)",
+                            daycare_nn2 = "Daycares(nn2 m)",
+                            schooldist = "School District",
+                            midschool= "Middle School",
+                            Highwaydist="Dist to Highway (m)",
+                            Metros_nn1 = "Dist to Meto Station (m)",
+                            GolfCourseDist = "Dist to Golf Course (m)",
+                            Starbucks_nn1 = "Dist to Starbucks (m)",
+                            ParksDist ="Dist to Park (m)",
+                            waterDist = "Dist to Water (m)",
+                            beachDist = "Dist to Beach (m)",
+                            crime_nn2 = "Crimes (nn2 m)")
+
+#more labels
+Miami_Training_internal = apply_labels(Miami_Training_internal,
+                                       ActualSqFt = "Square Feet",
+                                       YearBuilt = "Year Built",
+                                       Stories = "Stories",
+                                       Bath = "Baths",
+                                       Bed = "Beds",
+                                       LotSize = "Lot Size",
+                                       Zoning = "Zoning Category",
+                                       bars = "Bars(nn2 m)",
+                                       marinas_nn2 = "Marinas(nn2 m)",
+                                       pschool_nn3 = "Private Schools(nn3 m)",
+                                       contamination_nn3= "Contamination Sites(nn3 m)",
+                                       colleges_nn3 = "Colleges(nn3 m)",
+                                       daycare_nn2 = "Daycares(nn2 m)",
+                                       schooldist = "School District",
+                                       midschool= "Middle School",
+                                       Highwaydist="Dist to Highway (m)",
+                                       Metros_nn1 = "Dist to Meto Station (m)",
+                                       GolfCourseDist = "Dist to Golf Course (m)",
+                                       Starbucks_nn1 = "Dist to Starbucks (m)",
+                                       ParksDist ="Dist to Park (m)",
+                                       waterDist = "Dist to Water (m)",
+                                       beachDist = "Dist to Beach (m)",
+                                       crime_nn2 = "Crimes (nn2 m)")
+#bars 
+# Load Open streets map data for bars and restaurants
+
+miami.base <- 
+  st_read("https://opendata.arcgis.com/datasets/5ece0745e24b4617a49f2e098df8117f_0.geojson") %>%
+  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
+  st_union()
+xmin = st_bbox(miami.base)[[1]]
+ymin = st_bbox(miami.base)[[2]]
+xmax = st_bbox(miami.base)[[3]]  
+ymax = st_bbox(miami.base)[[4]]
+
+ggplot() +
+  geom_sf(data=miami.base, fill="black") +
+  geom_sf(data=st_as_sfc(st_bbox(miami.base)), colour="red", fill=NA)
+bars <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>% 
+  add_osm_feature(key = 'amenity', value = c("bar", "pub", "restaurant")) %>%
+  osmdata_sf()
+
+bars <- 
+  bars$osm_points %>%
+  .[miami.base,]
+
+bars <- st_transform(bars,6346)
+bars <- st_set_crs(bars,6346)
+st_c <- st_coordinates
+# add columns for nearest neighbor bars and restaurants
+
+Miami_Houses <-
+  Miami_Houses %>% 
+  mutate(
+    bars_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(bars)), 2))
 # important training!
 inTrain <- createDataPartition(
   y = paste(Miami_Training$neighborhood), 
@@ -993,9 +1079,26 @@ reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>%
                                    Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
                                    crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning))
 
+#288,443 1.14
+reg.training2 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                     dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning))
+# 200,171 and .22  RMSE 780655.8  Rsquared 0.7731148    MAE 322008.4
+reg.training3 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                     dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning,Pool))
+#203913.7 and .241727 RMSE 769585.5  Rsquared  0.7886338  MAE 322977
+
+reg.training4 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning,midschool))
+#199,834.5 and .225 RMSE780649.2   Rsquared 0.7734249  MAE 322264.5
+
+reg.training5 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,midschool))
+
+#199,499.9 and 0.2200033 and   RMSE 779710.8     Rsquared 0.775913 MAE 322590   
+
 Miami.test <-
   Miami.test %>%
-  mutate(SalePrice.Predict = predict(reg.training, Miami.test),
+  mutate(SalePrice.Predict = predict(reg.training5, Miami.test),
          SalePrice.Error = SalePrice.Predict - SalePrice,
          SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
          SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
@@ -1005,13 +1108,27 @@ mean(Miami.test$SalePrice.AbsError, na.rm = T)
 
 mean(Miami.test$SalePrice.APE, na.rm = T)
 
+#k-fold
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+
+reg.cv <- 
+  train(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+          dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning), 
+        method = "lm", trControl = fitControl, na.action = na.pass)
+
+reg.cv
+
+
+
+
 # automate the test
 
-vars <- c("SalePrice","lagSQ","neighborhood","Dock","ActualSqFt","YearBuilt","LotSize","Zoning","SalePriceAvg")
+vars <- c("SalePrice","neighborhood2","SalePriceAvg","Dock","Zoning","Pool","LotSize","daycare_nn2","lagLot","Highwaydist","midschool")
           
 
-N <- list(1,2,3,4,5,6,7,8)
-comb <- sapply(N, function(m) combn(x=vars[2:9], m))
+N <- list(1,2,3,4,5,6,7,8,9,10)
+comb <- sapply(N, function(m) combn(x=vars[2:11], m))
 
 comb2 <- list()
 k=0

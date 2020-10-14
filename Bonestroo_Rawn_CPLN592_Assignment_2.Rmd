@@ -26,10 +26,11 @@ table, td, th {
 
 ***
 # 1.1 Introduction
-Write about intro
+In order to better factor in local intelligence, our team was tasked with building a better predictive model of home prices for Miami, Florida. Using data gathered from online open data resources and OLS regression, we created a model that predicted sale prices. We attempted to minimize average error and create a model that is both accurate and generalizable across space. While we initially collected many variables, we found that a simple model including only four features was better able to predict sale prices. This is because our models with many features included colinear features, and thus, was overfitted. By including neighborhood and the average sale price of surrounding homes, we were able to better predict sale prices across neighborhoods and within neighborhoods. 
 
 # 1.2 Data 
 ## Features
+While our final model only includes the features of neighborhood, zoning class, average sale price of the five nearest homes, and dock, we began by collecting as many features as we could find. We found data for our features from online open data sources, including the [Miami-Dade County Open Data Hub](https://gis-mdc.opendata.arcgis.com/). We also engineered features from within the housing data we were given. Our original features included everything from distance to the beach to school district. After thorough analysis, we narrowed our features down to the final four included the in the model. Our features are split between internal characteristics, amenities/public services, and spatial structures. 
 
 ```{r setup, results='hide', error=FALSE, message=FALSE, warning=FALSE}
 setwd("C:/Users/Hannah/Documents/Penn/Fall 2020/CPLN-592/Assignments/Assignment 2/CPLN592Assignment2")
@@ -62,10 +63,12 @@ library(table1)
 library(summarytools)
 library(arsenal)
 library(expss)
+library(spatstat)
 options(scipen=999)
 options(tigris_class = "sf")
 
 #Load Styles
+
 mapTheme <- function(base_size = 12) {
   theme(
     text = element_text( color = "black"),
@@ -104,7 +107,9 @@ plotTheme <- function(base_size = 12) {
     strip.text.x = element_text(size = 14)
   )
 }
+
 # Load Quantile break functions
+
 qBr <- function(df, variable, rnd) {
   if (missing(rnd)) {
     as.character(quantile(round(df[[variable]],0),
@@ -118,9 +123,11 @@ qBr <- function(df, variable, rnd) {
 q5 <- function(variable) {as.factor(ntile(variable, 5))}
 
 # Load hexadecimal color palette
+
 palette5 <- c("#25CB10", "#5AB60C", "#8FA108",   "#C48C04", "#FA7800")
 
 # Load nn function
+
 nn_function <- function(measureFrom,measureTo,k) { 
   measureFrom_Matrix <- as.matrix(measureFrom)
   measureTo_Matrix <- as.matrix(measureTo)
@@ -138,9 +145,11 @@ nn_function <- function(measureFrom,measureTo,k) {
     pull()}
   
 # Load census API key
+
 census_api_key("91a259a2aaac3093a636d189040e0ff263fc823b", overwrite = TRUE)
 
 # Load Assignment 2 student data
+
 Miami_Houses <- 
   rbind(
     st_read("studentsData.geojson") %>%
@@ -149,7 +158,6 @@ Miami_Houses <- st_set_crs(Miami_Houses, 6346)
 Miami_Houses <- distinct(Miami_Houses,  .keep_all = TRUE)
 ```
 
-The METRO Green Line consists of fourteen stops in St. Paul and extends from downtown onward into Minneapolis. 
 ```{r Loading Variables, results='hide', error=FALSE, message=FALSE, warning=FALSE}
 # Load neighborhood boundaries
 
@@ -177,7 +185,7 @@ nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)%>%
 
 Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
 
-# fix limited data nhoods
+# fix neighborhoods with limited entries
 
 Miami_Houses$neighborhood2 <- ifelse(grepl("East Grove", Miami_Houses$neighborhood),Miami_Houses$neighborhood2<-"North Grove",
                                      ifelse(grepl("Bird Grove West", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"Bird Grove East",
@@ -310,6 +318,7 @@ Starbucks.sf <- st_as_sf(Starbucks, coords = c("Longitude", "Latitude"), crs = 4
 st_c <- st_coordinates
 
 # add column for nearest neighbor Starbucks
+
 Miami_Houses <-
   Miami_Houses %>% 
   mutate(
@@ -515,40 +524,6 @@ Miami_Houses <-
   mutate(
     marinas_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(miami.marinas)), 2))
 
-
-# Load Open streets map data for bars and restaurants
-
-miami.base <- 
-  st_read("https://opendata.arcgis.com/datasets/5ece0745e24b4617a49f2e098df8117f_0.geojson") %>%
-  filter(NAME == "MIAMI BEACH" | NAME == "MIAMI") %>%
-  st_union()
-xmin = st_bbox(miami.base)[[1]]
-ymin = st_bbox(miami.base)[[2]]
-xmax = st_bbox(miami.base)[[3]]  
-ymax = st_bbox(miami.base)[[4]]
-
-ggplot() +
-  geom_sf(data=miami.base, fill="black") +
-  geom_sf(data=st_as_sfc(st_bbox(miami.base)), colour="red", fill=NA)
-bars <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>% 
-  add_osm_feature(key = 'amenity', value = c("bar", "pub", "restaurant")) %>%
-  osmdata_sf()
-
-bars <- 
-  bars$osm_points %>%
-  .[miami.base,]
-
-bars <- st_transform(bars,6346)
-bars <- st_set_crs(bars,6346)
-st_c <- st_coordinates
-
-# add columns for nearest neighbor bars and restaurants
-
-Miami_Houses <-
-  Miami_Houses %>% 
-  mutate(
-    bars_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(bars)), 2))
-
 # add column for spatial lag of Sq ft
 
 Miami_Houses.centroids<-st_centroid(Miami_Houses)
@@ -640,99 +615,45 @@ Miami_Training$SalePriceAvg <- (Miami_Training$price1+Miami_Training$price2+Miam
 
 ```{r Create Training data, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=0.5}
 
-
-#Labels
-
-Miami_Houses = apply_labels(Miami_Houses,
-                      ActualSqFt = "Square Feet",
-                      YearBuilt = "Year Built",
-                      Stories = "Stories",
-                      Bath = "Baths",
-                      Bed = "Beds",
-                      LotSize = "Lot Size",
-                      Zoning = "Zoning Category",
-                      bars = "Bars(nn2 m)",
-                      marinas_nn2 = "Marinas(nn2 m)",
-                      pschool_nn3 = "Private Schools(nn3 m)",
-                      contamination_nn3= "Contamination Sites(nn3 m)",
-                      colleges_nn3 = "Colleges(nn3 m)",
-                      daycare_nn2 = "Daycares(nn2 m)",
-                      schooldist = "School District",
-                      midschool= "Middle School",
-                      Highwaydist="Dist to Highway (m)",
-                      Metros_nn1 = "Dist to Meto Station (m)",
-                      GolfCourseDist = "Dist to Golf Course (m)",
-                      Starbucks_nn1 = "Dist to Starbucks (m)",
-                      ParksDist ="Dist to Park (m)",
-                      waterDist = "Dist to Water (m)",
-                      beachDist = "Dist to Beach (m)",
-                      crime_nn2 = "Crimes (nn2 m)")
-
-
 # internal characteristics
 
 Miami_Training_internal<-Miami_Training[,c("Bed","LotSize",
-                                          "Bath","YearBuilt","Stories","ActualSqFt",
-                                          
-                                                     
-                                                "Pool",                 
-                                          "Patio",                "Carport",               "Whirlpool",            
+                                          "Bath","YearBuilt","Stories","ActualSqFt","Pool",                 
+                                          "Patio", "Carport","Whirlpool",            
                                           "Dock")]
 
-# amenities characteristics
+# spatial characteristics
 
-Miami_Training_spatial<-Miami_Training[,c("Property.City","Zoning",
-                                           
-                                      
-                                           "crime_nn2",            
-                                                    
-                                                  "neighborhood" ,                   
-                                                 
-                                           "contamination_nn3",           
-                                                                     
-                                           "MedHHInc",            
-                                           "MedRent",               "pctWhite",              "pctBachelors",         
-                                           "pctPoverty",                                           "lagLot" ,              
-                                           "lagSQ")]
+Miami_Training_spatial<-Miami_Training[,c("Property.City","Zoning", "crime_nn2", "neighborhood" , "contamination_nn3",  "MedHHInc", "MedRent","pctWhite", "pctBachelors", "pctPoverty",  "lagLot" , "lagSQ", "SalePriceAvg")]
 
 # amenities characteristics
 
-Miami_Training_amenities<-Miami_Training[,c(
-                                                 
-                                           "beachDist",            "waterDist" ,         "GolfCourseDist",        "Metros_nn1",           
-                                           "Highwaydist"   ,                "midschool"  ,          
-                                           "schooldist" ,          "daycare_nn2"  ,         "colleges_nn3",        
-                                           "pschool_nn3",          "hospitals_nn3",        
-                                           "marinas_nn2"          )]
+Miami_Training_amenities<-Miami_Training[,c( "beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
+                                           "Highwaydist" ,  "midschool","schooldist" , "daycare_nn2" , 
+                                           "colleges_nn3",        
+                                           "pschool_nn3", "hospitals_nn3",        
+                                           "marinas_nn2" )]
 
 
 ```
+### Internal Characteristics
+The following features of internal characteristics were created:
+
+Variable Name | Feature | Units | Type
+------------- | ------------- | -------------| -------------
+ActualSqFt| Actual Square Feet | Square Feet | Numerical
+Bath|Number of Baths | - | Categorical 
+Bed  |Number of Beds | - | Categorical 
+Carport | Car Port | - | Categorical 
+Dock | Dock | - | Categorical 
+LotSize | Lot Size | Square Feet | Numerical
+Patio | Patio | - |Categorical 
+Pool | Pool | - | Categorical 
+Whirlpool | Whirlpool | - | Categorical 
+YearBuilt | Year Built | Years | Numerical 
 
 ``````{r feature summary statistics, results='asis',fig.width=24, fig.height=8}
-Miami_Training_internal = apply_labels(Miami_Training_internal,
-                      ActualSqFt = "Square Feet",
-                      YearBuilt = "Year Built",
-                      Stories = "Stories",
-                      Bath = "Baths",
-                      Bed = "Beds",
-                      LotSize = "Lot Size",
-                      Zoning = "Zoning Category",
-                      bars = "Bars(nn2 m)",
-                      marinas_nn2 = "Marinas(nn2 m)",
-                      pschool_nn3 = "Private Schools(nn3 m)",
-                      contamination_nn3= "Contamination Sites(nn3 m)",
-                      colleges_nn3 = "Colleges(nn3 m)",
-                      daycare_nn2 = "Daycares(nn2 m)",
-                      schooldist = "School District",
-                      midschool= "Middle School",
-                      Highwaydist="Dist to Highway (m)",
-                      Metros_nn1 = "Dist to Meto Station (m)",
-                      GolfCourseDist = "Dist to Golf Course (m)",
-                      Starbucks_nn1 = "Dist to Starbucks (m)",
-                      ParksDist ="Dist to Park (m)",
-                      waterDist = "Dist to Water (m)",
-                      beachDist = "Dist to Beach (m)",
-                      crime_nn2 = "Crimes (nn2 m)")
+
 stargazer(
   as.data.frame(Miami_Training_internal[,c("LotSize","YearBuilt","ActualSqFt")]), type = "html",
   summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd"),
@@ -743,7 +664,129 @@ stargazer(
                 float = TRUE,
                 table.placement = "H")
 
+```
 
+### Amenities and Public Services
+The following features of amenities and public services were created:
+
+Variable Name | Feature | Units | Type
+------------- | ------------- | -------------| -------------
+beachDist| Dist ance to beach | Meters | Numerical
+colleges_nn3  |Average distance to three nearest colleges| Meters| Numerical 
+daycare_nn2| Average distance to two nearest daycares | Meters | Numerical 
+GolfCourseDist | Distance to golf course | Meters | Numerical 
+Highwaydist | Distance to major highway | Meters | Categorical 
+hospitals_nn3 | Average distance to three nearest hospitals | Meters | Numerical
+marinas_nn2 | Average distance to two nearest marinas | Meters |Numerical 
+Metros_nn1 | Distance to nearest metro station | Meters | Numerical 
+midschool | Middle School | - | Categorical 
+pschool_nn3 | Average distance to three nearest private schools | Meters | Numerical
+schooldist | School District | - | Categorical
+waterdist | Distance to water | Meters | Numerical
+
+``````{r feature summary statistics2, results='asis',fig.width=24, fig.height=8}
+
+stargazer(
+  as.data.frame(Miami_Training_amenities[,c("beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
+                                           "Highwaydist" ,  "midschool","schooldist" , "daycare_nn2" , 
+                                           "colleges_nn3",        
+                                           "pschool_nn3", "hospitals_nn3",        
+                                           "marinas_nn2" )]), type = "html",
+  summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd"),
+  header = FALSE,
+  title = "Amenities and Public Services Summary Statistics",
+  notes = "Table 1.2 ",
+                notes.align = "l",
+                float = TRUE,
+                table.placement = "H")
+```
+
+### Saptial Structures
+The following features of spatial structures were created:
+
+Variable Name | Feature | Units | Type
+------------- | ------------- | -------------| -------------
+contamination_nn3 |Average distance to three nearest contamination sites| Meters| Numerical
+crime_nn2| Average distance to two nearest crime incidents | Meters | Numerical
+lagLot  |Spatial Lag Lot Size| Square Feet | Numerical 
+lagSQ | Spatia Lag Actual Square Feet | Square Feet | Numerical 
+MedHHInc | Median Household Income of census tract | Dollars | Numerical 
+MedRent | Median Rent of census tract | Dollars | Numerical 
+pctBachelors | Percent of persons with Bachelor's degree by census tract | Percent | Numerical
+pctPoverty | Percent of persons below poverty line by census tract | Percent | Numerical 
+pctWhite | Percent of persons identifying as white by census tract | Percent | Numerical 
+SalePriceAvg | Average sale price of five nearest homes |Dollars  | Numerical
+Zoning | Zoning Class | - | Categorical
+
+
+``````{r feature summary statistics3, results='asis',fig.width=24, fig.height=8}
+
+stargazer(
+  as.data.frame(Miami_Training_spatial[,c("Property.City","Zoning", "crime_nn2", "neighborhood" , "contamination_nn3",  "MedHHInc", "MedRent","pctWhite", "pctBachelors", "pctPoverty",  "lagLot" , "lagSQ", "SalePriceAvg")]), type = "html",
+  summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd"),
+  header = FALSE,
+  title = "Amenities and Public Services Summary Statistics",
+  notes = "Table 1.2 ",
+                notes.align = "l",
+                float = TRUE,
+                table.placement = "H")
+```
+
+### Correlation Matrix
+
+We created a correlation matrix to examine the correlations between our features. If two features are strongly correlated with each other, it means that they are colinear. Collinearity creates a bad model, because if both correlated features are put into the regression, one will be insignificant. We found that while lagLot and lagSQ were the only two features strongly correlated with each other (r > .8), many other features were moderately correlated. We carefully examined these correlations, as well as each feature's correlation with Sale Price to decide which features to use in our model.
+
+```{r Correlation Matrix, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5}
+
+# select features
+Miami_Training_features<-Miami_Training[,c("SalePrice","LotSize",
+                                          "YearBuilt","ActualSqFt","Pool",                 
+                                          "Patio", "Carport","Whirlpool",            
+                                          "Dock","Zoning", "crime_nn2", "neighborhood" , "contamination_nn3",  "MedHHInc", "MedRent","pctWhite", "pctBachelors", "pctPoverty",  "lagLot" , "lagSQ", "SalePriceAvg",
+                                          "beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
+                                           "Highwaydist" ,  "midschool","schooldist" , "daycare_nn2" , 
+                                           "colleges_nn3",        
+                                           "pschool_nn3", "hospitals_nn3",        
+                                           "marinas_nn2")]
+
+# select numeric variables
+
+numericVars <- 
+  select_if(Miami_Training_features, is.numeric) %>% na.omit()
+numericVars <-st_drop_geometry(numericVars)
+
+cor(numericVars)
+
+# correlation matrix of variables
+
+Figure1.1 <- ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#FA7800","white","#25CB10"),
+  type="lower",
+  insig = "blank") +  
+  labs(title = "Correlation across numeric variables", caption = "Figure 1.1") 
+
+
+plot(Figure1.1)
+```
+
+```{r Correlation scatter plots, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5}
+
+st_drop_geometry(boston.sf) %>% 
+  mutate(Age = 2015 - YR_BUILT) %>%
+  dplyr::select(SalePrice, LivingArea, Age, GROSS_AREA) %>%
+  filter(SalePrice <= 1000000, Age < 500) %>%
+  gather(Variable, Value, -SalePrice) %>% 
+   ggplot(aes(Value, SalePrice)) +
+     geom_point(size = .5) + geom_smooth(method = "lm", se=F, colour = "#FA7800") +
+     facet_wrap(~Variable, ncol = 3, scales = "free") +
+     labs(title = "Price as a function of continuous variables") +
+     plotTheme()
+
+```
+
+```{r submarket plots2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 Yes = {'Yes';'No'};
 a<-tableby(~Pool,data = Miami_Training)
 labels(a)<- c(Pool='Pool')
@@ -769,22 +812,6 @@ d<-ggplot(data.frame(Miami_Training$Zoning), aes(x=Miami_Training$Zoning)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   plotTheme()
 plot(d)
-```
-
-Variable Name | Feature | Units | Type
-------------- | ------------- | -------------| -------------
-ActualSqFt| Actual Square Feet | Square Feet | Numerical
-Bath|Number of Baths | - | Categorical 
-Bed  |Number of Beds | - | Categorical 
-Carport | Car Port | - | Categorical 
-Dock | Dock | - | Categorical 
-LotSize | Lot Size | Square Feet | Numerical
-Patio | Patio | - |Categorical 
-Pool | Pool | - | Categorical 
-Whirlpool | Whirlpool | - | Categorical 
-
-```{r submarket plots2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-
 
 
 ```
