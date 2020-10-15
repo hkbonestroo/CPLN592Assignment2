@@ -25,8 +25,19 @@ table, td, th {
 # Hedonic Home Price Prediction in Miami, Florida
 
 ***
-# 1.1 Introduction
-In order to better factor in local intelligence, our team was tasked with building a better predictive model of home prices for Miami, Florida. Using data gathered from online open data resources and OLS regression, we created a model that predicted sale prices. We attempted to minimize average error and create a model that is both accurate and generalizable across space. While we initially collected many variables, we found that a simple model including only four features was better able to predict sale prices. This is because our models with many features included colinear features, and thus, was overfitted. By including neighborhood and the average sale price of surrounding homes, we were able to better predict sale prices across neighborhoods and within neighborhoods. 
+# Objective:
+To build a model that predicts home values in Miami Florida as accurately as possible, utilizing a regression model and available public data. 
+
+# 1.1 Executive Summary
+
+# Motivation:
+The question of "what is a home worth?" has a simple answer: whatever a buyer is willing to pay. But predicting what a buyer is willing to pay before a sale has occurred is no easy feat. Houses are not commodity goods. The many attributes that make a home valuable, everything from the number of bedrooms to the amenities of the neighborhood it is located in, vary significantly from home to home. Further complicating the problem is the fact that these characteristics are valued differently across different types of buyers, neighborhoods, and markets. This model attempts to address some of the challenges inherent in predicting home prices by utilizing the power of ordinary least squares regression and the insight offered by local spatial data. 
+
+#Process:
+Our process consisted of first gathering available datasets that held promise as predictors of home value. After wrangling the data, we evaluated each variable against several statistical criteria. After testing many combinations, we included in our final model a set of variables that most effectively minimized mean average error (MAE) while attempting to be as accurate and generalizable as possible.
+
+#Results
+Although we evaluated many variables, we found that a simple model including only four features minimized MAE when predicting sale prices. Including more features resulted often in higher r-squared values, but also in higher MAE, suggesting that a more simple model is most effective for avoiding colinearity and overfitted. Our model is more accurate than it is generalizable.
 
 # 1.2 Data 
 ## Features
@@ -819,6 +830,7 @@ plot(d)
 
 ### Results Section
 
+
 ```{r Training Set,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Split homes with known sale values into a training set and test set, then create a table of the training set summary results. (NOTE: NEED TO GET TABLE TO DISPLAY SUMMARY RSQUARED AND ERROR)
 inTrain <- createDataPartition(
@@ -836,6 +848,7 @@ reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_training_new) %>
                                    Highwaydist,Metros_nn1,waterDist,
                                    crime_nn2,ActualSqFt,YearBuilt,Stories,Bed,LotSize,Zoning
                      ))
+#Selected variables: neighborhood2, Zoning, SalePriceAvg, Dock
 
 #Create table of regression  output
 knitr::kable(reg.summary)
