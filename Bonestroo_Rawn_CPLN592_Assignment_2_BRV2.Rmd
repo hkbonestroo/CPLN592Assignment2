@@ -830,6 +830,7 @@ plot(d)
 
 ### Results Section
 
+We evaluated the predictive power of different combinations of variables by first dividing homes with known sale values into a "Training" set and a "Test" set. 60% of homes 
 
 ```{r Training Set,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Split homes with known sale values into a training set and test set, then create a table of the training set summary results. (NOTE: NEED TO GET TABLE TO DISPLAY SUMMARY RSQUARED AND ERROR)
@@ -841,16 +842,15 @@ Miami_test_new <- Miami_Training[-inTrain,]
 
 
 reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_training_new) %>% 
-                     dplyr::select(SalePrice,lagSQ,Dock,Whirlpool,Carport,
-                                   Pool,pctPoverty,MedRent, 
-                                   marinas_nn2,hospitals_nn3,pschool_nn3,
-                                   daycare_nn2,midschool,
-                                   Highwaydist,Metros_nn1,waterDist,
-                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bed,LotSize,Zoning
+                     dplyr::select(SalePrice,
+                                   neighborhood2,
+                                   SalePriceAvg,
+                                   Dock,
+                                   Zoning
                      ))
-#Selected variables: neighborhood2, Zoning, SalePriceAvg, Dock
 
 #Create table of regression  output
+reg.summary <- coef(summary(reg.training))
 knitr::kable(reg.summary)
 
 ```
