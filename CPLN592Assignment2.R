@@ -1279,3 +1279,17 @@ Miami_Test <-
 
 mean(Miami_Test$SalePrice.AbsError, na.rm = T)
 mean(Miami_Test$SalePrice.APE, na.rm = T)
+
+#cross validation
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+
+reg.cv <- 
+  train(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+          dplyr::select(SalePrice,lagLot,Dock,Whirlpool,Carport,Patio,
+                        Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+                        hospitals_nn3,contamination_nn3,
+                        daycare_nn2,midschool,
+                        Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+                        crime_nn2,ActualSqFt,YearBuilt,LotSize,Zoning), 
+        method = "lm", trControl = fitControl, na.action = na.pass)

@@ -862,6 +862,105 @@ ggplot() +
 
 Figure 1.2.5 shows that not surprisingly, homes with docks are clustered near the shore and are especially prevalent in Miami Beach. Figures 1.2.4 and Figures 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning becomes apparent. It looks like daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. For the most zoning tends to change along neighborhood lines. 
 
+# 1.2 Methods
+
+We created the desired sale price prediction model using the following steps. First, we examined the correlation between each feature and sale price, looking for those features with the strongest relationships. We also examined the correlations between each feature to look for collinearity. Using this information, we narrowed down our features to exclude features that were strongly correlated to each other and those with a weak correlation to sale price. We then found the R^2 and MAE for the model which includes all of our variables as a baseline. R^2 is the proportion of variance in sale price which can be explained by our features. While R^2 shows how well our model fits the data we have, a high R^2 value doesn't mean the model is good at predicting prices of unseen data. MAE or mean absolute error is a better measure of how good a model is good at prediction. The MAE is found by splitting the house points we have into a training and test set. Using the model created with the training set we predicted sale prices for the test set. These are then compared to the actual known sale prices of the test set to determine the error. The MAE is average of the absolute error for each of the predicted sale prices. We created a function which determined every single combination of features which could go into a model. We then had a function test every combination to determine which combinations of features produced the lowest MAE. We then used cross-validation to test the models across different random samples of data. We also examined if our model was good at predicting across neighborhoods and within neighborhoods and checked to see if our larger absolute errors were clustered.
+
+# 1.4 Results
+## Ordinary Least Squares Regression (OLS)
+
+
+``````{r OLS, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=8}
+
+inTrain <- createDataPartition(
+  y = paste(Miami_TrainingGeom$neighborhood2), 
+  p = .60, list = FALSE)
+Miami_training_new <- Miami_TrainingGeom[inTrain,] 
+Miami_test_new <- Miami_TrainingGeom[-inTrain,]  
+
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_TrainingGeom) %>% 
+                     dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
+                                   Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
+                                   marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
+                                   colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood2,SalePriceAvg,
+                                   Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
+                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning))
+
+reg.training2 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,midschool))
+
+
+#Create table of regression  output
+stargazer(reg.training, type="html", out="models.htm", report=('vc*p'),
+          header = FALSE,
+  title = "OLS Summary Results",
+  notes = "Table 1.4.1 ",
+                notes.align = "l",
+                float = TRUE,
+                table.placement = "H")
+
+#Create table of regression  output
+stargazer(reg.training2, type="html", out="models.htm", report=('vc*p'),
+          header = FALSE,
+  title = "OLS Summary Results of Model Used",
+  notes = "Table 1.4.2 ",
+                notes.align = "l",
+                float = TRUE,
+                table.placement = "H")
+```
+## MAE and MAPE (Single Test)
+
+``````{r MAE and MAPE, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=2}
+
+# single test set
+Miami_test_new <-
+  Miami_test_new %>%
+  mutate(SalePrice.Predict = predict(reg.training2, Miami_test_new),
+         SalePrice.Error = SalePrice.Predict - SalePrice,
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
+         SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
+  filter(SalePrice < 5000000)
+ 
+AbsError <- mean(Miami_test_new$SalePrice.AbsError, na.rm = T)
+APE <- mean(Miami_test_new$SalePrice.APE, na.rm = T) 
+Single_test = array(c(AbsError,APE), dim=c(1,2))
+
+kable(Single_test,format = "html", caption = "Title of the table",col.names = c('Mean Absolute Error', 'Mean Absolute Percent Error')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n",
+           general = "Table 1.4.3")
+
+```
+
+``````{r cross-validation, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=12, fig.height=2}
+
+#Cross validation (3.4.2)
+  
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+
+reg.cv <- 
+  train(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+          dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,midschool), 
+        method = "lm", trControl = fitControl, na.action = na.pass)
+MAE <-mean(reg.cv$resample[,3])
+R2<-mean(reg.cv$resample[,2])
+RMSE <-mean(reg.cv$resample[,1])
+Kfoldresults <- array(c(RMSE,R2,MAE), dim=c(1,2,3))
+kable(Kfoldresults,format = "html", caption = "Title of the table",col.names = c('Root Mean Square Error', 'R^2', 'Mean Absolute Error')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n",
+           general = "Table 1.4.3")
+reg.cv
+#First 5 folds
+reg.cv$resample[1:5,]
+#Mean for all 100 MAE observations
+mean(reg.cv$resample[,3])
+#Histogram of MAEs
+hist(reg.cv$resample[,3])
+
+```
+
 ```{r submarket plots2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 Yes = {'Yes';'No'};
 a<-tableby(~Pool,data = Miami_Training)
