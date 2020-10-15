@@ -830,7 +830,7 @@ plot(d)
 
 ### Results Section
 
-We evaluated the predictive power of different combinations of variables by first dividing homes with known sale values into a "Training" set and a "Test" set. 60% of homes 
+We evaluated the predictive power of different combinations of variables by dividing the dataset into a "Training" set and a "Test" set that allow us to test how our model might perform on a real dataset. 60% of houses with known sale values was grouped randomly into the Training Set, and 40% was grouped into the Test Set. A regression model is then created with the Training Set using a selection of variables and summarized below.
 
 ```{r Training Set,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Split homes with known sale values into a training set and test set, then create a table of the training set summary results. (NOTE: NEED TO GET TABLE TO DISPLAY SUMMARY RSQUARED AND ERROR)
@@ -855,6 +855,7 @@ knitr::kable(reg.summary)
 
 ```
 
+The Test Set was given several new columns which represent the predicted sale price using the regression model created previously. The output tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the Test Set.
 
 ```{r ABSError and APE,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Calculate test set ABSError and APE
@@ -870,6 +871,8 @@ mean(Miami_test_new$SalePrice.AbsError, na.rm = T)
 mean(Miami_test_new$SalePrice.APE, na.rm = T)
 ```
 
+The Test Set is further analyzed by running a K-Fold Cross Validation technique. Instead of calculating the MAE and MAPE based on one randomly selected Test Set, this approach allows us to repeat that process 100 times and then average the results together. The results can be seen in the histogram below.
+
 ```{r Cross Validation,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Cross validate the data using a 100 fold method
 
@@ -878,12 +881,11 @@ set.seed(825)
 
 reg.cv <- 
   train(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
-          dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,
-                        Pool,pctPoverty,MedRent,
-                        marinas_nn2,hospitals_nn3,pschool_nn3,
-                        daycare_nn2,midschool,
-                        Highwaydist,Metros_nn1,waterDist,beachDist,
-                        crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning), 
+          dplyr::select(SalePrice,
+                        neighborhood2,
+                         SalePriceAvg,
+                          Dock,
+                          Zoning), 
         method = "lm", trControl = fitControl, na.action = na.pass)
 reg.cv
 
@@ -895,6 +897,8 @@ mean(reg.cv$resample[,3])
 hist(reg.cv$resample[,3])
 
 ```
+
+
 
 ```{r Test Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Calculate Error, Absolute Error, and Average Percentage Error for the test set
@@ -1026,7 +1030,7 @@ st_drop_geometry(bothRegressions) %>%
 
 ```{r Plot predicted prices,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Plot prediction prices as function of observed prices
-bothRegressions %>%
+Miami_test_new %>%
   dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
   ggplot(aes(SalePrice, SalePrice.Predict)) +
   geom_point() +
@@ -1045,7 +1049,7 @@ bothRegressions %>%
 #Assess generalizability of the neighborhood model
 nhoods$neighborhood2 = nhoods$neighborhood
 
-st_drop_geometry(bothRegressions) %>%
+st_drop_geometry(Miami_test_new) %>%
   group_by(Regression, neighborhood2) %>%
   summarize(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
   ungroup() %>% 
@@ -1053,7 +1057,7 @@ st_drop_geometry(bothRegressions) %>%
   st_sf() %>%
   ggplot() + 
   geom_sf(aes(fill = mean.MAPE)) +
-  geom_sf(data = bothRegressions, colour = "black", size = .5) +
+  geom_sf(data = Miami_test_new, colour = "black", size = .5) +
   facet_wrap(~Regression) +
   scale_fill_gradient(low = palette5[1], high = palette5[5],
                       name = "MAPE") +
@@ -1095,7 +1099,7 @@ grid.arrange(ncol = 2,
 
 ```{r MAPE by Race,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Test MAPE by racial context
-st_join(bothRegressions, tracts17) %>% 
+st_join(Miami_test_new, tracts17) %>% 
   group_by(Regression, raceContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
   st_drop_geometry() %>%
@@ -1106,7 +1110,7 @@ st_join(bothRegressions, tracts17) %>%
 
 ```{r Mape by Income,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Test MAPE by income context
-st_join(bothRegressions, tracts17) %>% 
+st_join(Miami_test_new, tracts17) %>% 
   filter(!is.na(incomeContext)) %>%
   group_by(Regression, incomeContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
