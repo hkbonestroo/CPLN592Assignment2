@@ -830,6 +830,7 @@ plot(d)
 
 ### Results Section
 
+We evaluated the predictive power of different combinations of variables by dividing the dataset into a "Training" set and a "Test" set that allow us to test how our model might perform on a real dataset. 60% of houses with known sale values was grouped randomly into the Training Set, and 40% was grouped into the Test Set. A regression model is then created with the Training Set using a selection of variables and summarized below.
 
 ```{r Training Set,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Split homes with known sale values into a training set and test set, then create a table of the training set summary results. (NOTE: NEED TO GET TABLE TO DISPLAY SUMMARY RSQUARED AND ERROR)
@@ -841,20 +842,20 @@ Miami_test_new <- Miami_Training[-inTrain,]
 
 
 reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_training_new) %>% 
-                     dplyr::select(SalePrice,lagSQ,Dock,Whirlpool,Carport,
-                                   Pool,pctPoverty,MedRent, 
-                                   marinas_nn2,hospitals_nn3,pschool_nn3,
-                                   daycare_nn2,midschool,
-                                   Highwaydist,Metros_nn1,waterDist,
-                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bed,LotSize,Zoning
+                     dplyr::select(SalePrice,
+                                   neighborhood2,
+                                   SalePriceAvg,
+                                   Dock,
+                                   Zoning
                      ))
-#Selected variables: neighborhood2, Zoning, SalePriceAvg, Dock
 
 #Create table of regression  output
+reg.summary <- coef(summary(reg.training))
 knitr::kable(reg.summary)
 
 ```
 
+The Test Set was given several new columns which represent the predicted sale price using the regression model created previously. The output tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the Test Set.
 
 ```{r ABSError and APE,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Calculate test set ABSError and APE
@@ -870,6 +871,8 @@ mean(Miami_test_new$SalePrice.AbsError, na.rm = T)
 mean(Miami_test_new$SalePrice.APE, na.rm = T)
 ```
 
+The Test Set is further analyzed by running a K-Fold Cross Validation technique. Instead of calculating the MAE and MAPE based on one randomly selected Test Set, this approach allows us to repeat that process 100 times and then average the results together. The results can be seen in the histogram below.
+
 ```{r Cross Validation,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Cross validate the data using a 100 fold method
 
@@ -878,12 +881,11 @@ set.seed(825)
 
 reg.cv <- 
   train(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
-          dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,
-                        Pool,pctPoverty,MedRent,
-                        marinas_nn2,hospitals_nn3,pschool_nn3,
-                        daycare_nn2,midschool,
-                        Highwaydist,Metros_nn1,waterDist,beachDist,
-                        crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning), 
+          dplyr::select(SalePrice,
+                        neighborhood2,
+                         SalePriceAvg,
+                          Dock,
+                          Zoning), 
         method = "lm", trControl = fitControl, na.action = na.pass)
 reg.cv
 
@@ -896,8 +898,10 @@ hist(reg.cv$resample[,3])
 
 ```
 
+
+
 ```{r Test Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Calculate Error, Absolute Error, and Average Percentage Error for the test set
+#Rename regression to "Baseline Regression"
 Miami_test_new <-
   Miami_test_new %>%
   mutate(Regression = "Baseline Regression",
@@ -908,6 +912,8 @@ Miami_test_new <-
   filter(SalePrice < 5000000) 
 ```
 
+Next we attempted to answer the question of whether errors in our model were spatially clustered. To achieve this, we looked at the Spatial Lag of each house, calculated here as the average price of its nearest five neighbors. 
+
 ```{r Spatial Lag,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Calculate and plot spatial lag of the training set
 Miami_Training.centroids<-st_centroid(Miami_Training)
@@ -916,8 +922,9 @@ neighborList <- knn2nb(knearneigh(coords, 5))
 spatialWeights <- nb2listw(neighborList, style="W")
 Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
 
-plot(Miami_Training$lagPrice)
+#plot(Miami_Training$lagPrice)
 ```
+
 
 ```{r Sale Price Error,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Calculate and plot sale price error for the test set
@@ -939,6 +946,19 @@ plot(Miami_test_plot$lagPriceError, Miami_test_plot$SalePrice.Error)
 
 ```
 
+```{r Neighborhood Model,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Convert na values to zero
+Miami_test_no_na <- Miami_test_new
+Miami_test_no_na[is.na(Miami_test_no_na)] <- 0
+
+Miami_test_new <- 
+    dplyr::select(Miami_test_no_na, starts_with("SalePrice"), Regression, neighborhood2) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error))
+    
+```
+
+We also examined spatial autocorrelation by looking at Moran's I, which is represented by the orange line on the graph. The fact that this line is located at .15 implies that there does appear to be some spatial autocorrelation to the clustering of our errors than would be explained by random chance. 
+
 ```{r Moran's I,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Calculate observed and permuted Moran's I
 moranTest <- moran.mc(Miami_test_new$SalePrice.Error, 
@@ -957,64 +977,10 @@ ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
 
 ```
 
-```{r Account for Neighborhood,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Account for neighborhood in the prediction
-left_join(
-  st_drop_geometry(Miami_test_new) %>%
-    group_by(neighborhood2) %>%
-    summarize(meanPrice = mean(SalePrice, na.rm = T)),
-  mutate(Miami_test_new, predict.fe = 
-           predict(lm(SalePrice ~ neighborhood2, data = Miami_test_new), 
-                   Miami_test_new)) %>%
-    st_drop_geometry %>%
-    group_by(neighborhood2) %>%
-    summarize(meanPrediction = mean(predict.fe))) %>%
-  kable() %>% kable_styling()
-
-```
-
-```{r Neighborhood Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Re-estimate regression with neighborhood
-reg.nhood <- lm(SalePrice ~ ., data = as.data.frame(Miami_training_new) %>% 
-                  dplyr::select(neighborhood2, SalePrice,lagSQ,Dock,Whirlpool,Carport,
-                                Pool,pctPoverty,MedRent,
-                                marinas_nn2,hospitals_nn3,pschool_nn3,
-                                daycare_nn2,midschool,
-                                Highwaydist,Metros_nn1,waterDist,
-                                crime_nn2,ActualSqFt,YearBuilt,Stories,Bed,LotSize,Zoning))
-
-Miami.test.nhood <-
-  Miami_test_new %>%
-  mutate(Regression = "Neighborhood Effects",
-         SalePrice.Predict = predict(reg.nhood, Miami_test_new),
-         SalePrice.Error = SalePrice - SalePrice.Predict,
-         SalePrice.AbsError = abs(SalePrice - SalePrice.Predict),
-         SalePrice.APE = (abs(SalePrice - SalePrice.Predict)) / SalePrice)%>%
-  filter(SalePrice < 5000000)
-
-
-```
-
-```{r Neighborhood Model,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Assess the accuracy of the neighborhood model 
-Miami_test_no_na <- Miami_test_new
-Miami_test_no_na[is.na(Miami_test_no_na)] <- 0
-
-Miami.test.nhood.no_na <- Miami.test.nhood
-Miami.test.nhood.no_na[is.na(Miami.test.nhood.no_na)] <- 0
-
-bothRegressions <- 
-  rbind(
-    dplyr::select(Miami_test_no_na, starts_with("SalePrice"), Regression, neighborhood2) %>%
-      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)),
-    dplyr::select(Miami.test.nhood.no_na, starts_with("SalePrice"), Regression, neighborhood2) %>%
-      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)))  
-
-```
 
 ```{r MAE and MAP Table,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Create table for MAE and MAPE
-st_drop_geometry(bothRegressions) %>%
+st_drop_geometry(Miami_test_new) %>%
   gather(Variable, Value, -Regression, -neighborhood2) %>%
   filter(Variable == "SalePrice.AbsError" | Variable == "SalePrice.APE") %>%
   group_by(Regression, Variable) %>%
@@ -1024,14 +990,16 @@ st_drop_geometry(bothRegressions) %>%
 
 ```
 
+Plotting the prices predicted by the model against actual observed prices allows us to diagnose where the model seems to be predicting accurately and where it is not. Our predicted line (Green) starts above the perfect prediction line (Orange), suggesting that we are over-predicting home values for very low priced homes. However, this relationship soon reverses and the graph reveals that our model is under-predicting the price of homes as the true sale price increases. 
+
 ```{r Plot predicted prices,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Plot prediction prices as function of observed prices
-bothRegressions %>%
+Miami_test_new %>%
   dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
   ggplot(aes(SalePrice, SalePrice.Predict)) +
   geom_point() +
   stat_smooth(aes(SalePrice, SalePrice), 
-              method = "lm", se = FALSE, size = 1, colour="#FA7800") + 
+              method = "lm", se = FALSE, size = 1, colour="#FA7400") + 
   stat_smooth(aes(SalePrice.Predict, SalePrice), 
               method = "lm", se = FALSE, size = 1, colour="#25CB10") +
   facet_wrap(~Regression) +
@@ -1045,7 +1013,7 @@ bothRegressions %>%
 #Assess generalizability of the neighborhood model
 nhoods$neighborhood2 = nhoods$neighborhood
 
-st_drop_geometry(bothRegressions) %>%
+st_drop_geometry(Miami_test_new) %>%
   group_by(Regression, neighborhood2) %>%
   summarize(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
   ungroup() %>% 
@@ -1053,15 +1021,26 @@ st_drop_geometry(bothRegressions) %>%
   st_sf() %>%
   ggplot() + 
   geom_sf(aes(fill = mean.MAPE)) +
-  geom_sf(data = bothRegressions, colour = "black", size = .5) +
+  geom_sf(data = Miami_test_new, colour = "black", size = .5) +
   facet_wrap(~Regression) +
   scale_fill_gradient(low = palette5[1], high = palette5[5],
                       name = "MAPE") +
   labs(title = "Mean test set MAPE by neighborhood") +
   mapTheme()
 
+```
+```{r MAPE Plot,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
+#Plot MAPE by neighborhood as function of mean price by neighborhood
+#Miami_test_new %>%
+ # group_by(neighborhood2) %>%
+  #summarize(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
+  #summarize(mean.Price = mean(SalePrice, na.rm = T)) %>%
+  #ggplot(aes(mean.MAPE, mean.Price))
 
 ```
+
+A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE is constant at 23%. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizeable difference of 30% for high-income tracts and 21% for low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
 
 ```{r Census Data,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Import census data to assess generalizability
@@ -1095,7 +1074,7 @@ grid.arrange(ncol = 2,
 
 ```{r MAPE by Race,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Test MAPE by racial context
-st_join(bothRegressions, tracts17) %>% 
+st_join(Miami_test_new, tracts17) %>% 
   group_by(Regression, raceContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
   st_drop_geometry() %>%
@@ -1106,7 +1085,7 @@ st_join(bothRegressions, tracts17) %>%
 
 ```{r Mape by Income,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Test MAPE by income context
-st_join(bothRegressions, tracts17) %>% 
+st_join(Miami_test_new, tracts17) %>% 
   filter(!is.na(incomeContext)) %>%
   group_by(Regression, incomeContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
@@ -1115,6 +1094,27 @@ st_join(bothRegressions, tracts17) %>%
   kable(caption = "Test set MAPE by neighborhood income context")
 
 ```
+#Discussion
+On the whole, our model appears to predict prices reasonably well but is far from an ideal model. Analyzing the results of our model revealed several aspects that appear problematic and warrant further consideration:
+
+Variable Selection
+Interestingly, the variable set we found to produce the lowest mean absolute error consisted mostly of spatial variables. Only the variable "Dock" relates to the physical nature of the home in question. To our surprise, other asset level variables such as square footage and number of bedrooms did not reduce error when included in the model. We hypothesize that neighborhood and average sale price of nearby homes are highly correlated with home size and possibly causing colinearity issues when these variables are included. However, this leaves our model ill-equipped to accurately predict in situations where a house varies considerably from those nearby it, for example when valuing an unusually small house in a neighborhood of large homes. 
+
+Error vs. Home Price
+Our graph of predicted versus actual prices reveals the tendency of our model to increasingly under-predict as sale values increase. We hypothesize that the source of this error may be rooted in the variable selection of our model, which as discussed above lacks asset level features. Because the model cannot see square footage or bedroom count for example, it would plausibly under-predict the value of very expensive homes that are larger than others in close proximity. The significantly higher MAPE that we observe in high-income vs. lower-income neighborhoods is also likely caused by the model's greater error when predicting very expensive homes. 
+
+Spatial Error
+Our Moran's I test reveals that there is a non-trivial amount of spatial autocorrelation of our model's errors that cannot be explained by random chance. Although completely eliminating spatial error may be challenging, a value of .15 is not ideal. We would be interested in seeing whether this spatial error would be resolved by addressing some of the more glaring problems relating to variable selection. 
+
+#Conclusion
+Our model is imperfect, but it does offer a significant improvement over predictions based solely on the variables in the original dataset. This tells us that local spatial data does serve as a valuable predictive tool in accurately valuing homes. We would be interested in discussing our model with Zillow to determine whether they have considered the same spatial variables we did, and whether there are any that might improve their models. However, with a mean absolute error of over $200,000, or over 20% of average home sale value, our model is unlikely to outperform the Zestimate in minimizing errors.  
+
+There is clearly significant room for our model to improve, and to do so we would could consider:
+1. Further analysis of apparent errors in the model. Our model seems to consistently under-predict at higher home values, particularly at price points higher than 2.5MM. 
+2. Inclusion of more asset level variables. In order to be more accurate, it seems likely that the model would need to be able to identify homes that have physical features that differ greatly from others located nearby.
+3. Assessment of other spatial data. We also attempted to include several other variables that exceeded our technical ability to implement, such as WalkScore and TransitScore. 
+
+
 
 ```{r Results Section,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 
