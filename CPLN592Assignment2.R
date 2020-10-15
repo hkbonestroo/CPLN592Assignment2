@@ -1066,7 +1066,7 @@ Miami_Houses <-
     bars_nn2 = nn_function(st_c(st_centroid(Miami_Houses)), st_c(st_centroid(bars)), 2))
 # important training!
 inTrain <- createDataPartition(
-  y = paste(Miami_Training$neighborhood), 
+  y = paste(Miami_Training$neighborhood2), 
   p = .60, list = FALSE)
 Miami.training <- Miami_Training[inTrain,] 
 Miami.test <- Miami_Training[-inTrain,]  
@@ -1096,9 +1096,11 @@ reg.training5 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>%
 
 #199,499.9 and 0.2200033 and   RMSE 779710.8     Rsquared 0.775913 MAE 322590   
 
+reg.training6 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,Dock, Property.Zip))
 Miami.test <-
   Miami.test %>%
-  mutate(SalePrice.Predict = predict(reg.training5, Miami.test),
+  mutate(SalePrice.Predict = predict(reg.training2, Miami.test),
          SalePrice.Error = SalePrice.Predict - SalePrice,
          SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
          SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
@@ -1124,11 +1126,11 @@ reg.cv
 
 # automate the test
 
-vars <- c("SalePrice","neighborhood2","SalePriceAvg","Dock","Zoning","Pool","LotSize","daycare_nn2","lagLot","Highwaydist","midschool")
+vars <- c("SalePrice","neighborhood2","SalePriceAvg","Dock","Zoning","Pool","LotSize","lagLot","midschool")
           
 
-N <- list(1,2,3,4,5,6,7,8,9,10)
-comb <- sapply(N, function(m) combn(x=vars[2:11], m))
+N <- list(1,2,3,4,5,6,7,8)
+comb <- sapply(N, function(m) combn(x=vars[2:9], m))
 
 comb2 <- list()
 k=0

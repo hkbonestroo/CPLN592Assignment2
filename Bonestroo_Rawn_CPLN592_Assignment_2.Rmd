@@ -186,8 +186,10 @@ Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
 Miami_Houses$neighborhood2 <- ifelse(grepl("East Grove", Miami_Houses$neighborhood),Miami_Houses$neighborhood2<-"North Grove",
                                      ifelse(grepl("Bird Grove West", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"Bird Grove East",
                                             ifelse(grepl("Bay Heights", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
-                                                  ifelse(grepl("Vizcaya", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
-                                                   ifelse(grepl("Fair Isle", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",Miami_Houses$neighborhood2<-Miami_Houses$neighborhood)))))
+                                                   ifelse(grepl("Vizcaya", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
+                                                          ifelse(grepl("Fair Isle", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
+                                                                 Miami_Houses$neighborhood2<-Miami_Houses$neighborhood)))))
+
 
 # Load demographic data from ACS
 
