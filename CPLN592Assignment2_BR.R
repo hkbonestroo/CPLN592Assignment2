@@ -897,6 +897,45 @@ ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
        caption="Public Policy Analytics, Figure 6.8") +
   plotTheme()
 
+#Accounting for neighborhood (4.3)
+left_join(
+  st_drop_geometry(Miami_test_new) %>%
+    group_by(neighborhood) %>%
+    summarize(meanPrice = mean(SalePrice, na.rm = T)),
+  mutate(Miami_test_new, predict.fe = 
+           predict(lm(SalePrice ~ neighborhood, data = Miami_test_new), 
+                   Miami_test_new)) %>%
+    st_drop_geometry %>%
+    group_by(neighborhood) %>%
+    summarize(meanPrediction = mean(predict.fe))) %>%
+  kable() %>% kable_styling()
+
+#Re-estimate regression with neighborhood
+reg.nhood <- lm(SalePrice ~ ., data = as.data.frame(Miami_training_new) %>% 
+                  dplyr::select(neighborhood, SalePrice,lagSQ,Dock,Whirlpool,Carport,
+                                Pool,pctPoverty,MedRent,
+                                marinas_nn2,hospitals_nn3,pschool_nn3,
+                                daycare_nn2,midschool,
+                                Highwaydist,Metros_nn1,waterDist,
+                                crime_nn2,ActualSqFt,YearBuilt,Stories,Bed,LotSize,Zoning))
+
+Miami.test.nhood <-
+  Miami_test_new %>%
+  mutate(Regression = "Neighborhood Effects",
+         SalePrice.Predict = predict(reg.nhood, Miami_test_new),
+         SalePrice.Error = SalePrice - SalePrice.Predict,
+         SalePrice.AbsError = abs(SalePrice - SalePrice.Predict),
+         SalePrice.APE = (abs(SalePrice - SalePrice.Predict)) / SalePrice)%>%
+  filter(SalePrice < 5000000)
+
+#Accuracy of the neighborhood model (4.3.1)
+bothRegressions <- 
+  rbind(
+    dplyr::select(Miami_test_new, starts_with("SalePrice"), Regression, Name) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)),
+    dplyr::select(Miami.test.nhood, starts_with("SalePrice"), Regression, Name) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)))  
+
 
 --------------------------------------
 
