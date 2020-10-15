@@ -901,7 +901,7 @@ hist(reg.cv$resample[,3])
 
 
 ```{r Test Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Calculate Error, Absolute Error, and Average Percentage Error for the test set
+#Rename regression to "Baseline Regression"
 Miami_test_new <-
   Miami_test_new %>%
   mutate(Regression = "Baseline Regression",
@@ -977,48 +977,20 @@ left_join(
 
 ```
 
-```{r Neighborhood Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Re-estimate regression with neighborhood
-reg.nhood <- lm(SalePrice ~ ., data = as.data.frame(Miami_training_new) %>% 
-                  dplyr::select(neighborhood2, SalePrice,lagSQ,Dock,Whirlpool,Carport,
-                                Pool,pctPoverty,MedRent,
-                                marinas_nn2,hospitals_nn3,pschool_nn3,
-                                daycare_nn2,midschool,
-                                Highwaydist,Metros_nn1,waterDist,
-                                crime_nn2,ActualSqFt,YearBuilt,Stories,Bed,LotSize,Zoning))
-
-Miami.test.nhood <-
-  Miami_test_new %>%
-  mutate(Regression = "Neighborhood Effects",
-         SalePrice.Predict = predict(reg.nhood, Miami_test_new),
-         SalePrice.Error = SalePrice - SalePrice.Predict,
-         SalePrice.AbsError = abs(SalePrice - SalePrice.Predict),
-         SalePrice.APE = (abs(SalePrice - SalePrice.Predict)) / SalePrice)%>%
-  filter(SalePrice < 5000000)
-
-
-```
-
 ```{r Neighborhood Model,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Assess the accuracy of the neighborhood model 
+#Convert na values to zero
 Miami_test_no_na <- Miami_test_new
 Miami_test_no_na[is.na(Miami_test_no_na)] <- 0
 
-Miami.test.nhood.no_na <- Miami.test.nhood
-Miami.test.nhood.no_na[is.na(Miami.test.nhood.no_na)] <- 0
-
-bothRegressions <- 
-  rbind(
+Miami_test_new <- 
     dplyr::select(Miami_test_no_na, starts_with("SalePrice"), Regression, neighborhood2) %>%
-      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)),
-    dplyr::select(Miami.test.nhood.no_na, starts_with("SalePrice"), Regression, neighborhood2) %>%
-      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)))  
-
+      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error))
+    
 ```
 
 ```{r MAE and MAP Table,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Create table for MAE and MAPE
-st_drop_geometry(bothRegressions) %>%
+st_drop_geometry(Miami_test_new) %>%
   gather(Variable, Value, -Regression, -neighborhood2) %>%
   filter(Variable == "SalePrice.AbsError" | Variable == "SalePrice.APE") %>%
   group_by(Regression, Variable) %>%
