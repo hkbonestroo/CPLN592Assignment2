@@ -631,12 +631,12 @@ Miami_TrainingGeom <- Miami_Training
 # Plot distribution of sale prices over neighborhoods
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data = Miami_Training, aes(colour = q5(SalePrice)), 
+  geom_sf(data = st_centroid(Miami_Training), aes(colour = q5(SalePrice)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = palette5,
                       labels=qBr(Miami_Training,"SalePrice"),
                       name="Quintile\nBreaks") +
-  labs(title="Sale Price",
+  labs(title="Sale Price (Dollars)",
   subtitle="Miami, Florida", 
        caption= "Figure 1.1.1") +
   mapTheme()
@@ -695,7 +695,7 @@ stargazer(
   summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd"),
   header = FALSE,
   title = "Internal Characteristics Summary Statistics",
-  notes = "Table 1.1 ",
+  notes = "Table 1.2.1 ",
                 notes.align = "l",
                 float = TRUE,
                 table.placement = "H")
@@ -731,7 +731,7 @@ stargazer(
   summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd"),
   header = FALSE,
   title = "Amenities and Public Services Summary Statistics",
-  notes = "Table 1.2 ",
+  notes = "Table 1.2.2 ",
                 notes.align = "l",
                 float = TRUE,
                 table.placement = "H")
@@ -762,13 +762,13 @@ stargazer(
   summary.stat = c("min", "p25", "median", "p75", "max", "median", "sd"),
   header = FALSE,
   title = "Amenities and Public Services Summary Statistics",
-  notes = "Table 1.2 ",
+  notes = "Table 1.2.3 ",
                 notes.align = "l",
                 float = TRUE,
                 table.placement = "H")
 ```
 
-## Correlations
+## Data Exploration
 
 We created a correlation matrix to examine the correlations between our features. If two features are strongly correlated with each other, it means that they are colinear. Collinearity creates a bad model, because if both correlated features are put into the regression, one will be insignificant. We found that while lagLot and lagSQ were the only two features strongly correlated with each other (r > .8), many other features were moderately correlated. We carefully examined these correlations, as well as each feature's correlation with Sale Price to decide which features to use in our model.
 
@@ -818,7 +818,7 @@ st_drop_geometry(Miami_Training) %>%
    ggplot(aes(Value, SalePrice)) +
      geom_point(size = .5) + geom_smooth(method = "lm", se=F, colour = "#FA7800") +
      facet_wrap(~Variable, ncol = 3, scales = "free") +
-     labs(title = "Price as a function of continuous variables", caption= "Figure 1.2.2") +
+     labs(title = "Price as a function of continuous variables", x= "", y="Sale Price",caption= "Figure 1.2.2") +
      plotTheme()
 
 ```
@@ -833,7 +833,7 @@ st_drop_geometry(Miami_TrainingGeom) %>%
    ggplot(aes(Value, SalePrice)) +
      geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
      facet_wrap(~Variable, ncol = 1, scales = "free") +
-     labs(title = "Price as a function of categorical variables", y = "Mean_Price",caption="Figure 1.2.3") +
+     labs(title = "Price as a function of categorical variables", y = "Mean Sale Price", x=" ", caption="Figure 1.2.3") +
      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
      plotTheme()
 
@@ -846,7 +846,7 @@ Maps can also be used to examine the relationship between features and sale pric
 # Plot zoning
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data = Miami_TrainingGeom, aes(colour = Zoning), 
+  geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = Zoning), 
           show.legend = "point", size = .75) +
   labs(title="Zoning Classes",
   subtitle="Miami, Florida", 
@@ -856,7 +856,7 @@ ggplot() +
 #plot Dock
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data = Miami_TrainingGeom, aes(colour = Dock), 
+  geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = Dock), 
           show.legend = "point", size = .75) +
   labs(title="Properties with Docks",
   subtitle="Miami, Florida", 
@@ -866,7 +866,7 @@ ggplot() +
 # Plot distribution of sale prices over neighborhoods
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data = Miami_TrainingGeom, aes(colour = q5(daycare_nn2)), 
+  geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = q5(daycare_nn2)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = palette5,
                       labels=qBr(Miami_TrainingGeom,"daycare_nn2"),
@@ -879,7 +879,7 @@ ggplot() +
 # Plot distribution of sale prices over neighborhoods
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data = Miami_TrainingGeom, aes(colour = q5(SalePriceAvg)), 
+  geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = q5(SalePriceAvg)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = palette5,
                       labels=qBr(Miami_TrainingGeom,"SalePriceAvg"),
@@ -917,7 +917,7 @@ reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>%
 
 
 reg.summary <- coef(summary(reg.training))
-kable(reg.summary,format = "html", caption = "Title of the table") %>% 
+kable(reg.summary,format = "html", caption = "Regression Results Summary") %>% 
   kable_styling()
 first_column <- c("Observations","R2", "Adjusted R2","Residual Std. Error","F Statistic")
 second_column <- c("1,756","0.767","0.755","951,616.300(df = 1665)","60.970*** (df = 90; 1665) (p = 0.000)")
@@ -927,11 +927,11 @@ regression_stats <- data.frame(first_column, second_column)
 kable(regression_stats,format = "html", col.names = c('', '')) %>% 
   kable_styling() %>%
   footnote(general_title = "\n",
-           general = "Table 1.4.3")
+           general = "Table 1.4.1")
 
 
 ```
-## MAE and MAPE (Single Test)
+## Prediction Tests
 
 The Test Set was given several new columns which represent the predicted sale price using the regression model created previously. The output tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the Test Set.
 ``````{r MAE and MAPE, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=2}
@@ -947,12 +947,16 @@ Miami_test_new <-
  
 AbsError <- mean(Miami_test_new$SalePrice.AbsError, na.rm = T)
 APE <- mean(Miami_test_new$SalePrice.APE, na.rm = T) 
-Single_test = array(c(AbsError,APE), dim=c(1,2))
 
-kable(Single_test,format = "html", caption = "Title of the table",col.names = c('Mean Absolute Error', 'Mean Absolute Percent Error')) %>% 
+first_column <- c("Mean Absolute Error","Mean Absolute Percent Error")
+second_column <- c(AbsError,APE)
+
+Single_test <- data.frame(first_column, second_column)
+
+kable(Single_test,format = "html", caption = "Prediction Results of Single Test", col.names = c('', '')) %>%
   kable_styling() %>%
   footnote(general_title = "\n",
-           general = "Table 1.4.3")
+           general = "Table 1.4.2")
 
 
 ```
@@ -981,7 +985,7 @@ second_column <- c(mean(reg.cv$resample[,1]),mean(reg.cv$resample[,2]),mean(reg.
 
 kfold_results <- data.frame(first_column, second_column)
 
-kable(kfold_results,format = "html", caption = "Title of the table", col.names = c('', '')) %>% 
+kable(kfold_results,format = "html", caption = "K-Fold Cross Validation Test", col.names = c('', '')) %>% 
   kable_styling() %>%
   footnote(general_title = "\n",
            general = "Table 1.4.3")
@@ -993,8 +997,8 @@ ggplot(data=MAEs, aes(MAEs$MAE)) +
   geom_histogram(breaks=seq(0, 1500000, by=10000), 
                  fill="#25CB10" 
                  ) + 
-  labs(title="Histogram for Age", x="MAEs", y="Count",  subtitle="Miami, Florida", 
-       caption= "Figure 1.1.1")+
+  labs(title="Distribution of MAE", x="Mean Absolute Error", y="Count",  subtitle="k-fold cross validation; k=100", 
+       caption= "Figure 1.4.1")+
   plotTheme()
 
 
@@ -1026,7 +1030,7 @@ Miami_test_new %>%
               method = "lm", se = FALSE, size = 1, colour="#25CB10") +
   facet_wrap(~Regression) +
   labs(title="Predicted sale price as a function of observed price",
-       subtitle="Orange line represents a perfect prediction; Green line represents prediction") +
+       subtitle="Orange line represents a perfect prediction; Green line represents prediction", x= "Actual Sale Price",y="Predicted Sale Price",caption= "Figure 1.4.2") +
   plotTheme() + theme(plot.title = element_text(size = 18, colour = "black")) 
 
 ```
@@ -1038,14 +1042,14 @@ Miami_test_new %>%
 # Plot distribution of sale prices over neighborhoods
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data = Miami_test_new, aes(colour = q5(SalePrice.AbsError)), 
+  geom_sf(data = st_centroid(Miami_test_new), aes(colour = q5(SalePrice.AbsError)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = palette5,
                       labels=qBr(Miami_test_new,"SalePrice.AbsError"),
                       name="Quintile\nBreaks") +
-  labs(title="Average Sale Price of Five Nearest Neighbors",
+  labs(title="Absolute sale price errors on the test set",
   subtitle="Miami, Florida", 
-       caption= "Figure 1.2.7") +
+       caption= "Figure 1.4.3") +
   mapTheme()
 
 
@@ -1076,8 +1080,6 @@ neighborList <- knn2nb(knearneigh(coords, 5))
 spatialWeights <- nb2listw(neighborList, style="W")
 Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
 
-plot(Miami_Training$lagPrice)
-
 #Calculate and plot sale price error for the test set
 coords.test <- st_centroid(st_geometry(Miami_test_new), of_largest_polygon=TRUE)
 neighborList.test <- knn2nb(knearneigh(coords.test, 5))
@@ -1086,24 +1088,31 @@ spatialWeights.test <- nb2listw(neighborList.test, style="W")
 Miami_test_plot <- Miami_test_new
 Miami_test_plot[is.na(Miami_test_plot)] <- 0
 Miami_test_plot$lagPriceError <- lag.listw(spatialWeights.test, Miami_test_plot$SalePrice.Error)
-       
-plot(Miami_test_plot$lagPriceError, Miami_test_plot$SalePrice.Error)
+Miami_test_plot$lagPrice <- lag.listw(spatialWeights.test, Miami_test_plot$SalePrice)
 
-ggplot(data=Miami_test_plot, aes(lagPriceError,SalePrice.Error)) +
+plot2<-ggplot(data=Miami_test_plot, aes(lagPriceError,SalePrice.Error)) +
   geom_point()+
   geom_smooth(method=lm, se=FALSE)+
-  labs(title="Histogram for Age", x="MAEs", y="Count",  subtitle="Miami, Florida", 
-       caption= "Figure 1.1.1")+
-  plotTheme()
+  labs(title="Error as a function of the spatial lag of error", x="Spatial lag of errors (mean error of five nearest neighbors)", y="Sale Price Error",  
+       caption= "Figure 1.4.5")+
+  plotTheme()+
+  theme(plot.title = element_text(size=10),axis.title = element_text(siz=10))
 
+plot1 <-ggplot(data=Miami_test_plot, aes(lagPrice,SalePrice)) +
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  labs(title="Price as a function of the spatial lag of price", x="Spatial lag of price (mean of five nearest neighbors)", y="Sale Price",  
+       caption= "Figure 1.4.4")+
+  plotTheme()+
+  theme(plot.title = element_text(size=10), axis.title = element_text(siz=10))
 
-plot(Miami_test_plot$lagPriceError, Miami_test_plot$SalePrice.Error)
+grid.arrange(plot1,plot2, ncol=2)
 
 ```
 
 We also examined spatial autocorrelation by looking at Moran's I, which is represented by the orange line on the graph. The fact that this line is located at .15 implies that there does appear to be some spatial autocorrelation to the clustering of our errors than would be explained by random chance. 
 
-```{r Moran }
+```{r Moran,results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
 #Calculate observed and permuted Moran's I
 
 Miami_test_newMI<-Miami_test_new[,c( "SalePrice.Error" )]
@@ -1122,12 +1131,12 @@ ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
        subtitle= "Observed Moran's I in orange",
        x="Moran's I",
        y="Count",
-       caption="Public Policy Analytics, Figure 6.8") +
+       caption="Figure 1.4.6") +
   plotTheme()
 
 ```
 
-```{r Predicted Maps,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+```{r Predicted Maps,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
 
 # predicting Challenge set
 Miami_Houses <- 
@@ -1294,14 +1303,14 @@ MAEPrediction <- rbind(Miami_Testmap, Miami_Trainingmap)
 
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
-  geom_sf(data =MAEPrediction, aes(colour = q5(SalePrice.Predict)), 
-          show.legend = "point", size = .75) +
+  geom_sf(data =st_centroid(MAEPrediction), aes(colour = q5(SalePrice.Predict)), 
+          show.legend = "point", size = .5) +
   scale_colour_manual(values = palette5,
                       labels=qBr(Miami_Training,"SalePrice.Predict"),
                       name="Quintile\nBreaks") +
-  labs(title="Sale Price",
+  labs(title="Predicted Sale Prices of Training and Challenge Sets",
   subtitle="Miami, Florida", 
-       caption= "Figure 1.1.1") +
+       caption= "Figure 1.4.7") +
   facet_wrap(~Type)+
   mapTheme()
 
@@ -1321,11 +1330,11 @@ st_drop_geometry(Miami_test_new) %>%
   ggplot() + 
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(aes(fill = mean.MAPE)) +
-  geom_sf(data = Miami_test_new, colour = "black", size = .5) +
-  facet_wrap(~Regression) +
-  scale_fill_gradient(low = palette5[5], high = palette5[1],
+  geom_sf(data = Miami_test_new, colour = "black", size = .5)+
+  scale_fill_gradient(low = palette5[1], high = palette5[5],
                       name = "MAPE") +
-  labs(title = "Mean test set MAPE by neighborhood") +
+  labs(title = "Mean test set MAPE by neighborhood",subtitle="Miami, Florida", 
+       caption= "Figure 1.4.8") +
   mapTheme()
 
 ```
@@ -1342,43 +1351,14 @@ MAPE.Summary <-
 ggplot(data=MAPE.Summary, aes(mean.Price,mean.MAPE)) +
   geom_point()+
   geom_smooth(method=lm, se=FALSE)+
-  labs(title="Histogram for Age", x="Mean Price", y="MAPE",  subtitle="Miami, Florida", 
-       caption= "Figure 1.1.1")+
+  labs(title="MAPE by neighborhood as a function of mean price by neighborhood", x="Mean Price", y="MAPE", 
+       caption= "Figure 1.4.9")+
   plotTheme()
 
 
 
 ```
 
-```{r submarket plots2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-Yes = {'Yes';'No'};
-a<-tableby(~Pool,data = Miami_Training)
-labels(a)<- c(Pool='Pool')
-b<-table(Miami_Training$Patio)
-c<-table(Miami_Training$Dock)
-
-d<-table(Miami_Training$neighborhood)
-
-kable(list(a,b,c),format = "html", caption = "Title of the table") %>% 
-  kable_styling() %>%
-  footnote(general_title = "\n",
-           general = "Table 2.2")
-  
-kable(d,format = "html", caption = "Title of the table") %>% 
-  kable_styling() %>%
-  footnote(general_title = "\n",
-           general = "Table 2.2")
-  
-
-d<-ggplot(data.frame(Miami_Training$Zoning), aes(x=Miami_Training$Zoning)) +
-  geom_bar()+
-  labs(title = "Frequency of Zoning", y = "Count") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  plotTheme()
-plot(d)
-
-
-```
 
 A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE is constant at 23%. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizeable difference of 30% for high-income tracts and 21% for low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
 
@@ -1402,11 +1382,11 @@ tracts17miami <- tracts17[tracts17.miami.intersect[[1]],]
 grid.arrange(ncol = 2,
              ggplot() + geom_sf(data = na.omit(tracts17miami), aes(fill = raceContext)) +
                scale_fill_manual(values = c("#25CB10", "#FA7800"), name="Race Context") +
-               labs(title = "Race Context") +
+               labs(title = "Race Context", caption= "Figure 1.4.10") +
                mapTheme() + theme(legend.position="bottom"), 
              ggplot() + geom_sf(data = na.omit(tracts17miami), aes(fill = incomeContext)) +
                scale_fill_manual(values = c("#25CB10", "#FA7800"), name="Income Context") +
-               labs(title = "Income Context") +
+               labs(title = "Income Context",caption= "Figure 1.4.11") +
                mapTheme() + theme(legend.position="bottom"))
 
 ```
@@ -1414,24 +1394,34 @@ grid.arrange(ncol = 2,
 
 ```{r MAPE by Race,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Test MAPE by racial context
-st_join(Miami_test_new, tracts17) %>% 
+sum1<-st_join(Miami_test_new, tracts17) %>% 
   group_by(Regression, raceContext) %>%
-  summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
-  st_drop_geometry() %>%
-  spread(raceContext, mean.MAPE) %>%
-  kable(caption = "Test set MAPE by neighborhood racial context")
+  summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T)))
+#  kable(caption = "Test set MAPE by neighborhood racial context")
 
+
+sum1<-sum1[,c("raceContext","mean.MAPE")]
+
+kable(st_drop_geometry(sum1),format = "html", caption = "Test set MAPE by neighborhood racial context", col.names = c('', '')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n",
+           general = "Table 1.4.4")
 ```
 
 ```{r Mape by Income,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 #Test MAPE by income context
-st_join(Miami_test_new, tracts17) %>% 
+sum2<-st_join(Miami_test_new, tracts17) %>% 
   filter(!is.na(incomeContext)) %>%
   group_by(Regression, incomeContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
-  st_drop_geometry() %>%
-  spread(incomeContext, mean.MAPE) %>%
-  kable(caption = "Test set MAPE by neighborhood income context")
+  st_drop_geometry()
+sum2<-sum2[,c("incomeContext","mean.MAPE")]
+
+kable(sum2,format = "html", caption = "Test set MAPE by neighborhood income context", col.names = c('', '')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n",
+           general = "Table 1.4.5")
+
 
 ```
 #Discussion
