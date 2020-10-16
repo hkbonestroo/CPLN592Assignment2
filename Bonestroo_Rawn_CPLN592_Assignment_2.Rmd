@@ -25,22 +25,19 @@ table, td, th {
 # Hedonic Home Price Prediction in Miami, Florida
 
 ***
-# 1.1 Introduction
-In order to better factor in local intelligence, our team was tasked with building a better predictive model of home prices for Miami, Florida (Miami Beach was also included, but for brevity the combined municipalities will be referred to as Miami). Using data gathered from online open data resources and OLS regression, we created a model that predicted sale prices. We attempted to minimize average error and create a model that is both accurate and generalizable across space. While we initially collected many variables, we found that a simple model including only four features was best able to predict sale prices. This is because our models with many features included colinear features, and thus, were overfitted. By including neighborhood and the average sale price of surrounding homes, we were able to better predict sale prices across neighborhoods and, importantly, within neighborhoods. The following map depicts the the distribution of sale prices of the provided homes across Miami.
-
-# Objective:
-To build a model that predicts home values in Miami Florida as accurately as possible, utilizing a regression model and available public data. 
-
 # 1.1 Executive Summary
 
-# Motivation:
+## Motivation:
+
 The question of "what is a home worth?" has a simple answer: whatever a buyer is willing to pay. But predicting what a buyer is willing to pay before a sale has occurred is no easy feat. Houses are not commodity goods. The many attributes that make a home valuable, everything from the number of bedrooms to the amenities of the neighborhood it is located in, vary significantly from home to home. Further complicating the problem is the fact that these characteristics are valued differently across different types of buyers, neighborhoods, and markets. This model attempts to address some of the challenges inherent in predicting home prices by utilizing the power of ordinary least squares regression and the insight offered by local spatial data. 
 
-#Process:
+## Process:
+
 Our process consisted of first gathering available datasets that held promise as predictors of home value. After wrangling the data, we evaluated each variable against several statistical criteria. After testing many combinations, we included in our final model a set of variables that most effectively minimized mean average error (MAE) while attempting to be as accurate and generalizable as possible.
 
-#Results
-Although we evaluated many variables, we found that a simple model including only four features minimized MAE when predicting sale prices. Including more features resulted often in higher r-squared values, but also in higher MAE, suggesting that a more simple model is most effective for avoiding colinearity and overfitted. Our model is more accurate than it is generalizable.
+## Results
+
+Although we evaluated many variables, we found that a simple model including only four features minimized MAE when predicting sale prices. Including more features resulted often in higher r-squared values, but also in higher MAE, suggesting that a more simple model is most effective for minimizing error. Nonetheless, our model is far from a perfect home price predictor and exhibits several problematic characteristics, including limited generalizability, that will be discussed below.
 
 
 ```{r setup, results='hide', error=FALSE, message=FALSE, warning=FALSE}
@@ -625,10 +622,10 @@ Miami_Training$SalePriceAvg <- (Miami_Training$price1+Miami_Training$price2+Miam
 Miami_TrainingGeom <- Miami_Training
 ```
 
-```{r Miami Sale Price distribution, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
-
+```{r Miami Sale Price distribution, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
 
 # Plot distribution of sale prices over neighborhoods
+
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(data = st_centroid(Miami_Training), aes(colour = q5(SalePrice)), 
@@ -644,17 +641,17 @@ ggplot() +
 ```
 
 # 1.2 Data 
+
 ## Features
-While our final model only includes the features of neighborhood, zoning class, average sale price of the five nearest homes, and dock, we began by collecting as many features as we could find. We found data for our features from online open data sources, including the [Miami-Dade County Open Data Hub](https://gis-mdc.opendata.arcgis.com/). We also engineered features from within the housing data we were given. Our original features included everything from distance to the beach to school district. After thorough analysis, we narrowed our features down to the final four included the in the model. Our features are split between internal characteristics, amenities/public services, and spatial structures. 
 
+While our final model only includes the features of neighborhood, zoning class, average sale price of the five nearest homes, and dock prescence, we began by collecting as many features as we could find. We found data for our features from online open data sources, including the [Miami-Dade County Open Data Hub](https://gis-mdc.opendata.arcgis.com/). We also engineered features from within the dataset we were given. Our original features included everything from distance to the beach to middle school district. After thorough analysis, we narrowed our features down to the final four included in the model. Our features were split between internal characteristics, amenities/public services, and spatial structures. 
 
-
-```{r Create Training data, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=0.5}
+```{r Create Training data, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=0.75}
 
 # internal characteristics
 
 Miami_Training_internal<-Miami_Training[,c("Bed","LotSize",
-                                          "Bath","YearBuilt","Stories","ActualSqFt","Pool",                 
+                                          "Bath","YearBuilt","Stories","ActualSqFt","Pool",  
                                           "Patio", "Carport","Whirlpool",            
                                           "Dock")]
 
@@ -664,15 +661,16 @@ Miami_Training_spatial<-Miami_Training[,c("Property.City","Zoning", "crime_nn2",
 
 # amenities characteristics
 
-Miami_Training_amenities<-Miami_Training[,c( "beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
-                                           "Highwaydist" ,  "midschool","schooldist" , "daycare_nn2" , 
+Miami_Training_amenities<-Miami_Training[,c( "beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1",  "Highwaydist" ,  "midschool","schooldist", "daycare_nn2" , 
                                            "colleges_nn3",        
                                            "pschool_nn3", "hospitals_nn3",        
                                            "marinas_nn2" )]
 
 
 ```
+
 ### Internal Characteristics
+
 The following features of internal characteristics were created:
 
 Variable Name | Feature | Units | Type
@@ -688,7 +686,9 @@ Pool | Pool | - | Categorical
 Whirlpool | Whirlpool | - | Categorical 
 YearBuilt | Year Built | Years | Numerical 
 
-``````{r feature summary statistics, results='asis',fig.width=24, fig.height=8}
+``````{r feature summary statistics, results='asis',fig.width=20, fig.height=8}
+
+# summary statistics of internal characteristics
 
 stargazer(
   as.data.frame(Miami_Training_internal[,c("LotSize","YearBuilt","ActualSqFt")]), type = "html",
@@ -703,6 +703,7 @@ stargazer(
 ```
 
 ### Amenities and Public Services
+
 The following features of amenities and public services were created:
 
 Variable Name | Feature | Units | Type
@@ -720,7 +721,9 @@ pschool_nn3 | Average distance to three nearest private schools | Meters | Numer
 schooldist | School District | - | Categorical
 waterdist | Distance to water | Meters | Numerical
 
-``````{r feature summary statistics2, results='asis',fig.width=24, fig.height=8}
+``````{r feature summary statistics2, results='asis',fig.width=20, fig.height=8}
+
+# summary statistics of amenities
 
 stargazer(
   as.data.frame(Miami_Training_amenities[,c("beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
@@ -738,6 +741,7 @@ stargazer(
 ```
 
 ### Saptial Structures
+
 The following features of spatial structures were created:
 
 Variable Name | Feature | Units | Type
@@ -755,7 +759,9 @@ SalePriceAvg | Average sale price of five nearest homes |Dollars  | Numerical
 Zoning | Zoning Class | - | Categorical
 
 
-``````{r feature summary statistics3, results='asis',fig.width=24, fig.height=8}
+``````{r feature summary statistics3, results='asis',fig.width=20, fig.height=8}
+
+# summary statisitcs of spatial structures
 
 stargazer(
   as.data.frame(Miami_Training_spatial[,c("Property.City","Zoning", "crime_nn2", "neighborhood" , "contamination_nn3",  "MedHHInc", "MedRent","pctWhite", "pctBachelors", "pctPoverty",  "lagLot" , "lagSQ", "SalePriceAvg")]), type = "html",
@@ -770,17 +776,17 @@ stargazer(
 
 ## Data Exploration
 
-We created a correlation matrix to examine the correlations between our features. If two features are strongly correlated with each other, it means that they are colinear. Collinearity creates a bad model, because if both correlated features are put into the regression, one will be insignificant. We found that while lagLot and lagSQ were the only two features strongly correlated with each other (r > .8), many other features were moderately correlated. We carefully examined these correlations, as well as each feature's correlation with Sale Price to decide which features to use in our model.
+We created a correlation matrix to examine the correlations between our features. A good model will avoid including features that are strongly correlated with one another, because if both correlated features are put into the regression, one will be insignificant. We found that while lagLot and lagSQ were the only two features strongly correlated with each other (r > .8), many other features were moderately correlated. We carefully examined these correlations, as well as each feature's correlation with sale price to decide which features to use in our model.
 
-```{r Correlation Matrix, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5}
+```{r Correlation Matrix, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
 
-# select features
+# select features for correlation matrix
+
 Miami_Training_features<-Miami_Training[,c("SalePrice","LotSize",
                                           "YearBuilt","ActualSqFt","Pool",                 
                                           "Patio", "Carport","Whirlpool",            
-                                          "Dock","Zoning", "crime_nn2", "neighborhood" , "contamination_nn3",  "MedHHInc", "MedRent","pctWhite", "pctBachelors", "pctPoverty",  "lagLot" , "lagSQ", "SalePriceAvg",
-                                          "beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
-                                           "Highwaydist" ,  "midschool","schooldist" , "daycare_nn2" , 
+                                          "Dock","Zoning", "crime_nn2", "neighborhood" , "contamination_nn3",  "MedHHInc", "MedRent","pctWhite", "pctBachelors", "pctPoverty",  "lagLot" , "lagSQ", "SalePriceAvg","beachDist", "waterDist" ,"GolfCourseDist", "Metros_nn1", 
+"Highwaydist" ,  "midschool","schooldist" , "daycare_nn2" , 
                                            "colleges_nn3",        
                                            "pschool_nn3", "hospitals_nn3",        
                                            "marinas_nn2")]
@@ -807,9 +813,11 @@ Figure1.1 <- ggcorrplot(
 plot(Figure1.1)
 ```
 
-The feature with strongest statistically significant correlation to sale price was the actual square foot of the home with a correlation coefficient of .88. Other features with strong correlations to sale price include SalePriceAvg (r=.76),LotSize (r=.71), and lagSQ (r=.65). Some of the next strongest positive correlations include daycare_nn2 (r=.45) and MedHHInc (r=.41). These relationships can be explored through the following scatterplots. 
+The feature with strongest statistically significant correlation to sale price was the actual square foot of the home with a correlation coefficient of .88. Other features with strong correlations to sale price included SalePriceAvg (r=.76),LotSize (r=.71), and lagSQ (r=.65). Some of the next strongest positive correlations included daycare_nn2 (r=.45) and MedHHInc (r=.41). These relationships are explored through the following scatter plots. 
 
 ```{r Correlation scatter plots, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
+# feature scatter plotss
 
 st_drop_geometry(Miami_Training) %>% 
   dplyr::select(SalePrice, ActualSqFt, SalePriceAvg, daycare_nn2, MedHHInc) %>%
@@ -822,9 +830,12 @@ st_drop_geometry(Miami_Training) %>%
      plotTheme()
 
 ```
-These plots suggest a positive correlation exists. In all four plot, the regression line slopes upward, showing that as the variables increase, so does sale price. Many of our features we selected were not numerical, so they cannot be depicted with scatter plots. Instead, we examined the relationship between these features and the sale price using bar charts.
+
+In all four plots, the regression line slopes upward, showing that as the variables increase, so does sale price. While scatter plots are effective for exploring numerical features, many of our features were categorical. Instead, we examined the relationship between these features and the sale price using bar charts.
 
 ```{r Correlation bar charts, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5,fig.width=10}
+
+#correlation bar charts
 
 st_drop_geometry(Miami_TrainingGeom) %>% 
   dplyr::select(SalePrice, Zoning, midschool, Dock, neighborhood2) %>%
@@ -838,12 +849,14 @@ st_drop_geometry(Miami_TrainingGeom) %>%
      plotTheme()
 
 ```
-Maps can also be used to examine the relationship between features and sale price. By comparing maps with each other interesting patterns that inform the creation of the model can appear. 
 
-```{r Miami Maps, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+Maps can also be used to examine the relationship between features and sale price. By comparing maps with each other, we were able to investigate spatial patterns that informed our model. 
+
+```{r Miami Maps, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
 
 
 # Plot zoning
+
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = Zoning), 
@@ -854,6 +867,7 @@ ggplot() +
   mapTheme()
 
 #plot Dock
+
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = Dock), 
@@ -864,6 +878,7 @@ ggplot() +
   mapTheme()
 
 # Plot distribution of sale prices over neighborhoods
+
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = q5(daycare_nn2)), 
@@ -877,6 +892,7 @@ ggplot() +
   mapTheme()
 
 # Plot distribution of sale prices over neighborhoods
+
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(data = st_centroid(Miami_TrainingGeom), aes(colour = q5(SalePriceAvg)), 
@@ -890,17 +906,19 @@ ggplot() +
   mapTheme()
 ```
 
-Figure 1.2.5 shows that not surprisingly, homes with docks are clustered near the shore and are especially prevalent in Miami Beach. Figures 1.2.4 and Figures 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning becomes apparent. It looks like daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. For the most zoning tends to change along neighborhood lines. 
+Figure 1.2.5 shows that unsurprisingly, homes with docks are clustered near the shore, and are especially prevalent in Miami Beach. Figures 1.2.4 and 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning. It appears that daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. 
 
 # 1.3 Methods
 
-We created the desired sale price prediction model using the following steps. First, we examined the correlation between each feature and sale price, looking for those features with the strongest relationships. We also examined the correlations between each feature to look for collinearity. Using this information, we narrowed down our features to exclude features that were strongly correlated to each other and those with a weak correlation to sale price. We then found the R^2 and MAE for the model which includes all of our variables as a baseline. R^2 is the proportion of variance in sale price which can be explained by our features. While R^2 shows how well our model fits the data we have, a high R^2 value doesn't mean the model is good at predicting prices of unseen data. MAE or mean absolute error is a better measure of how good a model is good at prediction. The MAE is found by splitting the house points we have into a training and test set. Using the model created with the training set we predicted sale prices for the test set. These are then compared to the actual known sale prices of the test set to determine the error. The MAE is average of the absolute error for each of the predicted sale prices. We created a function which determined every single combination of features which could go into a model. We then had a function test every combination to determine which combinations of features produced the lowest MAE. We then used cross-validation to test the models across different random samples of data. We also examined if our model was good at predicting across neighborhoods and within neighborhoods and checked to see if our larger absolute errors were clustered.
+After our initial data exploration, we began the hard work of fine-tuning our price prediction model. We evaluated the predictive power of different combinations of variables by dividing the dataset into a "training" set and a "test" set that allowed us to test how our model might perform on a real dataset. 60% of houses with known sale values were grouped randomly into the training set, and 40% was grouped into the test set. To find the most accurate model, we created a list of every single combination of features and used a function to test every combination to determine which set produced the lowest mean absolute error (MAE), while using k-fold cross validation. After selecting a model, we analyzed how good our model was at predicting across neighborhoods and within neighborhoods and looked for clustering of errors.
 
 # 1.4 Results
-## Ordinary Least Squares Regression (OLS)
-We evaluated the predictive power of different combinations of variables by dividing the dataset into a "Training" set and a "Test" set that allow us to test how our model might perform on a real dataset. 60% of houses with known sale values was grouped randomly into the Training Set, and 40% was grouped into the Test Set. A regression model is then created with the Training Set using a selection of variables and summarized below.
 
-``````{r OLS, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=8}
+## Ordinary Least Squares Regression (OLS)
+
+The output of a regression model using the training set data and including our final variable selection of Neighborhood, nearby Sale Price Average, Zoning, and presence of a Dock is summarized below.
+
+``````{r OLS, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=20, fig.height=8}
 
 
 
@@ -931,12 +949,17 @@ kable(regression_stats,format = "html", col.names = c('', '')) %>%
 
 
 ```
-## Prediction Tests
 
-The Test Set was given several new columns which represent the predicted sale price using the regression model created previously. The output tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the Test Set.
-``````{r MAE and MAPE, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=2}
+The regression analysis summary shows that while the neighborhood and zoning class categories had varying degrees of significance, the presence of a dock and nearby sale price average were highly statistically significant. Our model has an R-squared value of 0.767 meaning that around three-fourths of the variance in sale price can be explained by our features.
+
+## Prediction
+
+Using the same regression variables described above, we applied our model to the houses in our test set in order to create predicted sale prices. In order to evaluate the effectiveness of the model, we started by calculating the average difference between the predicted prices and actual prices (Sale Price Error), the absolute value of those differences (Sale Price Absolute Error), and the percentage error of the absolute differences (Average Percentage Error). The output shown below tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the test set.
+
+``````{r MAE and MAPE, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=20, fig.height=2}
 
 # single test set
+
 Miami_test_new <-
   Miami_test_new %>%
   mutate(SalePrice.Predict = predict(reg.training, Miami_test_new),
@@ -961,12 +984,11 @@ kable(Single_test,format = "html", caption = "Prediction Results of Single Test"
 
 ```
 
-The Test Set is further analyzed by running a K-Fold Cross Validation technique. Instead of calculating the MAE and MAPE based on one randomly selected Test Set, this approach allows us to repeat that process 100 times and then average the results together. The results can be seen in the histogram below.
+The test set was further analyzed through a K-Fold Cross Validation technique. Instead of calculating the MAE and MAPE based on the results of one single randomly selected test set, this approach allows the process to be repeated 100 times and then averaged together to achieve a higher degree of accuracy and to judge generalizability. Our MAE was much smaller when performing only one test as compared with when using k-fold cross validation, which indicates that our model is more accurate than generalizable. The histogram below shows that for several runs, our model had very large MAE. This means that there must be a feature appearing in some of the random samples that our model is not accurately accounting for.  
 
 ```{r Cross Validation,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
-#Cross validate the data using a 100 fold method
 
-#-Provide the results of your cross-validation tests. This includes mean and standard deviation #MAE. Do 100 folds and plot your cross-validation MAE as a histogram. Is your model #generalizable to new data?
+#Cross validate the data using a 100 fold method
 
 fitControl <- trainControl(method = "cv", number = 100)
 set.seed(825)
@@ -1004,8 +1026,11 @@ ggplot(data=MAEs, aes(MAEs$MAE)) +
 
 
 ```
+
 ```{r Test Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
 #Rename regression to "Baseline Regression"
+
 Miami_test_new <-
   Miami_test_new %>%
   mutate(Regression = "Baseline Regression",
@@ -1016,10 +1041,12 @@ Miami_test_new <-
   filter(SalePrice < 5000000) 
 ```
 
-Plotting the prices predicted by the model against actual observed prices allows us to diagnose where the model seems to be predicting accurately and where it is not. Our predicted line (Green) starts above the perfect prediction line (Orange), suggesting that we are over-predicting home values for very low priced homes. However, this relationship soon reverses and the graph reveals that our model is under-predicting the price of homes as the true sale price increases. 
+Plotting the prices predicted by the model against actual observed prices allowed us to diagnose where the model seemed to be predicting accurately and where it was not. Our predicted line (Green) starts above the perfect prediction line (Orange), suggesting that we are over-predicting home values for very low priced homes. This relationship soon reverses however, and as the graph shows, our model appears to increasingly under-predict the price of homes as the true sale price increases. 
 
 ```{r Plot predicted prices,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
 #Plot prediction prices as function of observed prices
+
 Miami_test_new %>%
   dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
   ggplot(aes(SalePrice, SalePrice.Predict)) +
@@ -1035,11 +1062,12 @@ Miami_test_new %>%
 
 ```
 
+One of the metrics we evaluated for the test set was the absolute error of the predicted sale prices, which is calculated as the absolute value of the difference between our predicted sale price and the actual sale price. In the plot below, higher errors are represented by orange dots, while lower errors are represented by green dots. The map seems to suggests that our errors have spatial autocorrelation, which is to say that the instances of high errors seem to be clustered in the Southwest, along the coast, and within the Miami Beach peninsula. Based on the previous plot which suggests our model produces most error at higher home values, we hypothesize that the clustering visible on the map is at least partially driven by average sale price. The areas along the coast, within Miami Beach, and in the Southwest of the city limits (especially within a more upscale neighborhood called Southwest Coconut Grove) are also locations with especially high home values. Conversely, the areas with lowest Absolute Errors appear to be areas with lower home values. 
 
+```{r residuals map,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
 
-```{r residuals map,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+# Plot distribution of absolute sale price errors of test set over neighborhoods
 
-# Plot distribution of sale prices over neighborhoods
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
   geom_sf(data = st_centroid(Miami_test_new), aes(colour = q5(SalePrice.AbsError)), 
@@ -1057,12 +1085,12 @@ ggplot() +
 
 ```
 
-
-
-Next we attempted to answer the question of whether errors in our model were spatially clustered. To achieve this, we looked at the Spatial Lag of each house. 
+In order to further analyze the question of whether errors in our model were spatially clustered, we looked at the spatial lag of sale price and sale price error. The plots below show sale price as a function of the spatial lag of price and error as a function of the spatial lag of error. Figure 1.4.4 shows that as price increases, so does the price of nearby houses. This is evidence of the clustering of home prices. Figure 1.4.5 shows that the error in our model is also clustered. The fact that the model's error is spatially autocorrelated indicated that important features are missing from the model.
 
 ```{r Spatial Lag,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
 #Calculate and plot spatial lag of the training set
+
 Miami_Training.centroids<-st_centroid(Miami_Training)
 coords <- st_centroid(st_geometry(Miami_Training), of_largest_polygon=TRUE)
 neighborList <- knn2nb(knearneigh(coords, 5))
@@ -1072,7 +1100,7 @@ Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
 #plot(Miami_Training$lagPrice)
 ```
 
-```{r Spatial Lag2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+```{r Spatial Lag2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
 #Calculate and plot spatial lag of the training set
 Miami_Training.centroids<-st_centroid(Miami_Training)
 coords <- st_centroid(st_geometry(Miami_Training), of_largest_polygon=TRUE)
@@ -1081,6 +1109,7 @@ spatialWeights <- nb2listw(neighborList, style="W")
 Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
 
 #Calculate and plot sale price error for the test set
+
 coords.test <- st_centroid(st_geometry(Miami_test_new), of_largest_polygon=TRUE)
 neighborList.test <- knn2nb(knearneigh(coords.test, 5))
 spatialWeights.test <- nb2listw(neighborList.test, style="W")
@@ -1093,7 +1122,7 @@ Miami_test_plot$lagPrice <- lag.listw(spatialWeights.test, Miami_test_plot$SaleP
 plot2<-ggplot(data=Miami_test_plot, aes(lagPriceError,SalePrice.Error)) +
   geom_point()+
   geom_smooth(method=lm, se=FALSE)+
-  labs(title="Error as a function of the spatial lag of error", x="Spatial lag of errors (mean error of five nearest neighbors)", y="Sale Price Error",  
+  labs(title="Error as a func. of the spatial lag of error", x="Spatial lag of errors (mean error of 5 nearest neighbors)", y="Sale Price Error",  
        caption= "Figure 1.4.5")+
   plotTheme()+
   theme(plot.title = element_text(size=10),axis.title = element_text(siz=10))
@@ -1101,7 +1130,7 @@ plot2<-ggplot(data=Miami_test_plot, aes(lagPriceError,SalePrice.Error)) +
 plot1 <-ggplot(data=Miami_test_plot, aes(lagPrice,SalePrice)) +
   geom_point()+
   geom_smooth(method=lm, se=FALSE)+
-  labs(title="Price as a function of the spatial lag of price", x="Spatial lag of price (mean of five nearest neighbors)", y="Sale Price",  
+  labs(title="Price as a func. of the spatial lag of price", x="Spatial lag of price (mean of 5 nearest neighbors)", y="Sale Price",  
        caption= "Figure 1.4.4")+
   plotTheme()+
   theme(plot.title = element_text(size=10), axis.title = element_text(siz=10))
@@ -1110,9 +1139,9 @@ grid.arrange(plot1,plot2, ncol=2)
 
 ```
 
-We also examined spatial autocorrelation by looking at Moran's I, which is represented by the orange line on the graph. The fact that this line is located at .15 implies that there does appear to be some spatial autocorrelation to the clustering of our errors than would be explained by random chance. 
+We also examined spatial autocorrelation by looking at Moran's I, which can be interpreted as a measure of spatial autocorrelation. The randomly permuted Moran's I's are plotted in the histogram in grey, while the actual Moran's I of our data is represented by the orange line on the graph. The fact that this line is located at value that is positive and significantly different than zero, implies that there is indeed more spatial autocorrelation to the clustering of our errors than would be explained by random chance. This finding validates our suspicion when looking at the map of absolute errors that our model is failing to fully account for some real-world spatial variable or several variables. This finding is important to note, because even though our selection of regression variables did minimize mean absolute error, our metrics of spatial autocorrelation suggest that our model does have issues with generalizability when it is applied to homes in dissimilar locations. 
 
-```{r Moran,results='hide', echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,.asp=1}
+```{r Moran,results='hide', echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,.asp=.5}
 #Calculate observed and permuted Moran's I
 
 Miami_test_newMI<-Miami_test_new[,c( "SalePrice.Error" )]
@@ -1136,9 +1165,11 @@ ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
 
 ```
 
-```{r Predicted Maps,echo=FALSE, results='hide',error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+The maps below show our price predictions on on the training set next to price predictions from an unseen challenge set. The output appears to be consistent across both with no obvious anomalies.
 
-# predicting Challenge set
+```{r Predicted Maps,echo=FALSE, results='hide',error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
+
+# reloading clean data to test the challenge set
 Miami_Houses <- 
   rbind(
     st_read("studentsData.geojson") %>%
@@ -1316,9 +1347,12 @@ ggplot() +
 
 ```
 
-In one neighborhood most likely due to the under prediction of very expensive houses.
-```{r Generalizability,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+The graphic below plots the mean average percentage error of home predictions by neighborhood, which further helps us understand where our model is most accurate. Large errors (represented by an orange color) are highest along the coast and especially high in several neighborhoods in Miami Beach. These same neighborhoods feature very expensive homes, which we hypothesize is a major driver of their high errors. Our model is clearly missing a key feature in predicting the most expensive home values.
+
+```{r Generalizability,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
+
 #Assess generalizability of the neighborhood model
+
 nhoods$neighborhood2 = nhoods$neighborhood
 
 st_drop_geometry(Miami_test_new) %>%
@@ -1360,9 +1394,9 @@ ggplot(data=MAPE.Summary, aes(mean.Price,mean.MAPE)) +
 ```
 
 
-A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE is constant at 23%. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizeable difference of 30% for high-income tracts and 21% for low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
+A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE is constant at 23%. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizable difference of 30% for high-income tracts and 21% for low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
 
-```{r Census Data,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+```{r Census Data,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,results='hide',fig.asp=.75}
 #Import census data to assess generalizability
 tracts17 <- 
   get_acs(geography = "tract", variables = c("B01001_001E","B01001A_001E","B06011_001"), 
@@ -1393,12 +1427,14 @@ grid.arrange(ncol = 2,
 
 
 ```{r MAPE by Race,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
 #Test MAPE by racial context
+
 sum1<-st_join(Miami_test_new, tracts17) %>% 
   group_by(Regression, raceContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T)))
-#  kable(caption = "Test set MAPE by neighborhood racial context")
 
+#  kable(caption = "Test set MAPE by neighborhood racial context")
 
 sum1<-sum1[,c("raceContext","mean.MAPE")]
 
@@ -1409,7 +1445,9 @@ kable(st_drop_geometry(sum1),format = "html", caption = "Test set MAPE by neighb
 ```
 
 ```{r Mape by Income,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
 #Test MAPE by income context
+
 sum2<-st_join(Miami_test_new, tracts17) %>% 
   filter(!is.na(incomeContext)) %>%
   group_by(Regression, incomeContext) %>%
@@ -1424,7 +1462,8 @@ kable(sum2,format = "html", caption = "Test set MAPE by neighborhood income cont
 
 
 ```
-#Discussion
+
+# 1.5 Discussion
 On the whole, our model appears to predict prices reasonably well but is far from an ideal model. Analyzing the results of our model revealed several aspects that appear problematic and warrant further consideration:
 
 Variable Selection
@@ -1436,7 +1475,8 @@ Our graph of predicted versus actual prices reveals the tendency of our model to
 Spatial Error
 Our Moran's I test reveals that there is a non-trivial amount of spatial autocorrelation of our model's errors that cannot be explained by random chance. Although completely eliminating spatial error may be challenging, a value of .15 is not ideal. We would be interested in seeing whether this spatial error would be resolved by addressing some of the more glaring problems relating to variable selection. 
 
-#Conclusion
+# 1.6 Conclusion
+
 Our model is imperfect, but it does offer a significant improvement over predictions based solely on the variables in the original dataset. This tells us that local spatial data does serve as a valuable predictive tool in accurately valuing homes. We would be interested in discussing our model with Zillow to determine whether they have considered the same spatial variables we did, and whether there are any that might improve their models. However, with a mean absolute error of over $200,000, or over 20% of average home sale value, our model is unlikely to outperform the Zestimate in minimizing errors.  
 
 There is clearly significant room for our model to improve, and to do so we would could consider:
