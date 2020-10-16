@@ -27,11 +27,11 @@ table, td, th {
 ***
 # 1.1 Executive Summary
 
-## Motivation:
+## Motivation
 
 The question of "what is a home worth?" has a simple answer: whatever a buyer is willing to pay. But predicting what a buyer is willing to pay before a sale has occurred is no easy feat. Houses are not commodity goods. The many attributes that make a home valuable, everything from the number of bedrooms to the amenities of the neighborhood it is located in, vary significantly from home to home. Further complicating the problem is the fact that these characteristics are valued differently across different types of buyers, neighborhoods, and markets. This model attempts to address some of the challenges inherent in predicting home prices by utilizing the power of ordinary least squares regression and the insight offered by local spatial data. 
 
-## Process:
+## Process
 
 Our process consisted of first gathering available datasets that held promise as predictors of home value. After wrangling the data, we evaluated each variable against several statistical criteria. After testing many combinations, we included in our final model a set of variables that most effectively minimized mean average error (MAE) while attempting to be as accurate and generalizable as possible.
 
@@ -852,7 +852,7 @@ st_drop_geometry(Miami_TrainingGeom) %>%
 
 Maps can also be used to examine the relationship between features and sale price. By comparing maps with each other, we were able to investigate spatial patterns that informed our model. 
 
-```{r Miami Maps, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
+```{r average sale price map, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
 
 
 # Plot zoning
@@ -906,37 +906,42 @@ ggplot() +
   mapTheme()
 ```
 
-Figure 1.2.5 shows that unsurprisingly, homes with docks are clustered near the shore, and are especially prevalent in Miami Beach. Figures 1.2.4 and 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning. It appears that daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. 
+Figure 1.2.5 shows that unsurprisingly, homes with docks are clustered near the shore, and are especially prevalent in Miami Beach. Figures 1.2.4 and 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning. It appears that daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. These are the types of patterns we considered when creating our model.
 
 # 1.3 Methods
 
-After our initial data exploration, we began the hard work of fine-tuning our price prediction model. We evaluated the predictive power of different combinations of variables by dividing the dataset into a "training" set and a "test" set that allowed us to test how our model might perform on a real dataset. 60% of houses with known sale values were grouped randomly into the training set, and 40% was grouped into the test set. To find the most accurate model, we created a list of every single combination of features and used a function to test every combination to determine which set produced the lowest mean absolute error (MAE), while using k-fold cross validation. After selecting a model, we analyzed how good our model was at predicting across neighborhoods and within neighborhoods and looked for clustering of errors.
+After our initial data exploration, we began the hard work of fine-tuning our price prediction model. We evaluated the predictive power of different combinations of variables by dividing the dataset into a "training" set and a "test" set that allowed us to test how our model might perform on a real dataset. 60% of houses with known sale values were grouped randomly into the training set, and 40% were grouped into the test set. To find the most accurate model, we created a list of every single combination of features and used a function to test every combination to determine which set produced the lowest mean absolute error (MAE), while using k-fold cross validation. After selecting a model, we analyzed how good our model was at predicting across neighborhoods and within neighborhoods and looked for clustering of errors.
 
 # 1.4 Results
 
 ## Ordinary Least Squares Regression (OLS)
 
-The output of a regression model using the training set data and including our final variable selection of Neighborhood, nearby Sale Price Average, Zoning, and presence of a Dock is summarized below.
+The output of a regression model using training set data and including our final variable selection of Neighborhood, nearby Sale Price Average, Zoning, and presence of a Dock is summarized below.
 
 ``````{r OLS, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=20, fig.height=8}
 
 
-
 # create training and test set
+
 inTrain <- createDataPartition(
   y = paste(Miami_TrainingGeom$neighborhood2), 
   p = .60, list = FALSE)
 Miami_training_new <- Miami_TrainingGeom[inTrain,] 
 Miami_test_new <- Miami_TrainingGeom[-inTrain,]  
 
+# regression model
 
 reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
                       dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,Dock))
 
+# regression summary
 
 reg.summary <- coef(summary(reg.training))
 kable(reg.summary,format = "html", caption = "Regression Results Summary") %>% 
   kable_styling()
+
+#create output table of regression summary
+
 first_column <- c("Observations","R2", "Adjusted R2","Residual Std. Error","F Statistic")
 second_column <- c("1,756","0.767","0.755","951,616.300(df = 1665)","60.970*** (df = 90; 1665) (p = 0.000)")
 
@@ -954,7 +959,7 @@ The regression analysis summary shows that while the neighborhood and zoning cla
 
 ## Prediction
 
-Using the same regression variables described above, we applied our model to the houses in our test set in order to create predicted sale prices. In order to evaluate the effectiveness of the model, we started by calculating the average difference between the predicted prices and actual prices (Sale Price Error), the absolute value of those differences (Sale Price Absolute Error), and the percentage error of the absolute differences (Average Percentage Error). The output shown below tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the test set.
+Using the same regression variables described above, we applied our model to the houses in our test set in order to create predicted sale prices. In order to evaluate the effectiveness of the model, we started by calculating the average difference between the predicted prices and actual prices (Sale Price Error), the absolute value of those differences (Sale Price Absolute Error), and the percentage error of the absolute differences (Average Percentage Error). The output shown below shows the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the test set.
 
 ``````{r MAE and MAPE, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=20, fig.height=2}
 
@@ -970,6 +975,8 @@ Miami_test_new <-
  
 AbsError <- mean(Miami_test_new$SalePrice.AbsError, na.rm = T)
 APE <- mean(Miami_test_new$SalePrice.APE, na.rm = T) 
+
+#create a table of single test output
 
 first_column <- c("Mean Absolute Error","Mean Absolute Percent Error")
 second_column <- c(AbsError,APE)
@@ -1002,6 +1009,8 @@ reg.cv <-
                           Zoning), 
         method = "lm", trControl = fitControl, na.action = na.pass)
 
+#create a table of kfold output
+
 first_column <- c("RMSE","R2","MAE")
 second_column <- c(mean(reg.cv$resample[,1]),mean(reg.cv$resample[,2]),mean(reg.cv$resample[,3]))
 
@@ -1023,8 +1032,6 @@ ggplot(data=MAEs, aes(MAEs$MAE)) +
        caption= "Figure 1.4.1")+
   plotTheme()
 
-
-
 ```
 
 ```{r Test Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
@@ -1040,6 +1047,8 @@ Miami_test_new <-
          SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
   filter(SalePrice < 5000000) 
 ```
+
+## Spatial Autocorrelation Checks
 
 Plotting the prices predicted by the model against actual observed prices allowed us to diagnose where the model seemed to be predicting accurately and where it was not. Our predicted line (Green) starts above the perfect prediction line (Orange), suggesting that we are over-predicting home values for very low priced homes. This relationship soon reverses however, and as the graph shows, our model appears to increasingly under-predict the price of homes as the true sale price increases. 
 
@@ -1085,7 +1094,7 @@ ggplot() +
 
 ```
 
-In order to further analyze the question of whether errors in our model were spatially clustered, we looked at the spatial lag of sale price and sale price error. The plots below show sale price as a function of the spatial lag of price and error as a function of the spatial lag of error. Figure 1.4.4 shows that as price increases, so does the price of nearby houses. This is evidence of the clustering of home prices. Figure 1.4.5 shows that the error in our model is also clustered. The fact that the model's error is spatially autocorrelated indicated that important features are missing from the model.
+In order to further analyze the question of whether errors in our model were spatially clustered, we looked at the spatial lag of sale price and sale price error. The plots below show sale price as a function of the spatial lag of price and error as a function of the spatial lag of error. Figure 1.4.4 shows that as price increases, so does the price of nearby houses. This is evidence of the clustering of home prices. Figure 1.4.5 shows that the error in our model is also clustered. The fact that the model's error is spatially autocorrelated indicates that important features are missing from the model.
 
 ```{r Spatial Lag,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 
@@ -1097,18 +1106,19 @@ neighborList <- knn2nb(knearneigh(coords, 5))
 spatialWeights <- nb2listw(neighborList, style="W")
 Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
 
-#plot(Miami_Training$lagPrice)
 ```
 
 ```{r Spatial Lag2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
-#Calculate and plot spatial lag of the training set
+
+#Calculate spatial lag of the training set
+
 Miami_Training.centroids<-st_centroid(Miami_Training)
 coords <- st_centroid(st_geometry(Miami_Training), of_largest_polygon=TRUE)
 neighborList <- knn2nb(knearneigh(coords, 5))
 spatialWeights <- nb2listw(neighborList, style="W")
 Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
 
-#Calculate and plot sale price error for the test set
+#Calculate spatial lag of sale price error for the test set
 
 coords.test <- st_centroid(st_geometry(Miami_test_new), of_largest_polygon=TRUE)
 neighborList.test <- knn2nb(knearneigh(coords.test, 5))
@@ -1118,6 +1128,8 @@ Miami_test_plot <- Miami_test_new
 Miami_test_plot[is.na(Miami_test_plot)] <- 0
 Miami_test_plot$lagPriceError <- lag.listw(spatialWeights.test, Miami_test_plot$SalePrice.Error)
 Miami_test_plot$lagPrice <- lag.listw(spatialWeights.test, Miami_test_plot$SalePrice)
+
+# create plot of error as a function of spatial lage of error and price as a function of the spatial lag of price
 
 plot2<-ggplot(data=Miami_test_plot, aes(lagPriceError,SalePrice.Error)) +
   geom_point()+
@@ -1139,9 +1151,10 @@ grid.arrange(plot1,plot2, ncol=2)
 
 ```
 
-We also examined spatial autocorrelation by looking at Moran's I, which can be interpreted as a measure of spatial autocorrelation. The randomly permuted Moran's I's are plotted in the histogram in grey, while the actual Moran's I of our data is represented by the orange line on the graph. The fact that this line is located at value that is positive and significantly different than zero, implies that there is indeed more spatial autocorrelation to the clustering of our errors than would be explained by random chance. This finding validates our suspicion when looking at the map of absolute errors that our model is failing to fully account for some real-world spatial variable or several variables. This finding is important to note, because even though our selection of regression variables did minimize mean absolute error, our metrics of spatial autocorrelation suggest that our model does have issues with generalizability when it is applied to homes in dissimilar locations. 
+We also examined spatial autocorrelation by looking at Moran's I, which can be interpreted as a measure of spatial autocorrelation. The randomly permuted Moran's I's are plotted in the histogram in grey, while the actual Moran's I of our data is represented by the orange line on the graph. The fact that this line is located at a value that is positive and significantly different than zero, implies that there is indeed more spatial autocorrelation to the clustering of our errors than would be explained by random chance. This finding validates our suspicion when looking at the map of absolute errors that our model is failing to fully account for some real-world spatial variable or several variables. This finding is important to note, because even though our selection of regression variables did minimize mean absolute error, our metrics of spatial autocorrelation suggest that our model does have issues with generalizability when it is applied to homes in dissimilar locations. 
 
 ```{r Moran,results='hide', echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,.asp=.5}
+
 #Calculate observed and permuted Moran's I
 
 Miami_test_newMI<-Miami_test_new[,c( "SalePrice.Error" )]
@@ -1152,6 +1165,8 @@ spatialWeights.test <- nb2listw(neighborList.test, style="W")
 
 moranTest <- moran.mc(Miami_test_newMI$SalePrice.Error, 
                       spatialWeights.test, nsim = 999)
+
+# plot moran's i test
 
 ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
   geom_histogram(binwidth = 0.01) +
@@ -1170,6 +1185,7 @@ The maps below show our price predictions on on the training set next to price p
 ```{r Predicted Maps,echo=FALSE, results='hide',error=FALSE, message=FALSE, warning=FALSE,fig.asp=.75}
 
 # reloading clean data to test the challenge set
+
 Miami_Houses <- 
   rbind(
     st_read("studentsData.geojson") %>%
@@ -1299,9 +1315,12 @@ Miami_Training$price5 <- as.numeric(Miami_Training$price5)
 
 Miami_Training$SalePriceAvg <- (Miami_Training$price1+Miami_Training$price2+Miami_Training$price3+Miami_Training$price4+Miami_Training$price5)/5
 
+# create the final model
 
 reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
                       dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning))
+
+# test challenge set
 
 Miami_Test <-
   Miami_Test %>%
@@ -1329,8 +1348,9 @@ Miami_Training <-
 Miami_Trainingmap <- Miami_Training[,c("SalePrice.Predict")]
 Miami_Trainingmap$Type <- "Training Set"
 
-MAEPrediction <- rbind(Miami_Testmap, Miami_Trainingmap)
+#plot maps of predictions
 
+MAEPrediction <- rbind(Miami_Testmap, Miami_Trainingmap)
 
 ggplot() +
   geom_sf(data = nhoods, fill = "grey40") +
@@ -1346,6 +1366,8 @@ ggplot() +
   mapTheme()
 
 ```
+
+## Generalizability Across Neighbohood, Race, and Income
 
 The graphic below plots the mean average percentage error of home predictions by neighborhood, which further helps us understand where our model is most accurate. Large errors (represented by an orange color) are highest along the coast and especially high in several neighborhoods in Miami Beach. These same neighborhoods feature very expensive homes, which we hypothesize is a major driver of their high errors. Our model is clearly missing a key feature in predicting the most expensive home values.
 
@@ -1389,15 +1411,14 @@ ggplot(data=MAPE.Summary, aes(mean.Price,mean.MAPE)) +
        caption= "Figure 1.4.9")+
   plotTheme()
 
-
-
 ```
 
-
-A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE is constant at 23%. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizable difference of 30% for high-income tracts and 21% for low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
+A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE remains constant. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizable difference between high-income tracts and low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
 
 ```{r Census Data,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,results='hide',fig.asp=.75}
+
 #Import census data to assess generalizability
+
 tracts17 <- 
   get_acs(geography = "tract", variables = c("B01001_001E","B01001A_001E","B06011_001"), 
           year=2017, state=12, county="Miami-Dade County", geometry=T, output="wide") %>%
@@ -1413,6 +1434,8 @@ miami <- st_union(nhoods)
 tracts17.miami.intersect <- st_intersects(miami, tracts17)
 tracts17miami <- tracts17[tracts17.miami.intersect[[1]],]
 
+# map race and income boundaries
+
 grid.arrange(ncol = 2,
              ggplot() + geom_sf(data = na.omit(tracts17miami), aes(fill = raceContext)) +
                scale_fill_manual(values = c("#25CB10", "#FA7800"), name="Race Context") +
@@ -1424,8 +1447,6 @@ grid.arrange(ncol = 2,
                mapTheme() + theme(legend.position="bottom"))
 
 ```
-
-
 ```{r MAPE by Race,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 
 #Test MAPE by racial context
@@ -1434,7 +1455,7 @@ sum1<-st_join(Miami_test_new, tracts17) %>%
   group_by(Regression, raceContext) %>%
   summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T)))
 
-#  kable(caption = "Test set MAPE by neighborhood racial context")
+# Create table of MAPE by racial context
 
 sum1<-sum1[,c("raceContext","mean.MAPE")]
 
@@ -1443,7 +1464,6 @@ kable(st_drop_geometry(sum1),format = "html", caption = "Test set MAPE by neighb
   footnote(general_title = "\n",
            general = "Table 1.4.4")
 ```
-
 ```{r Mape by Income,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 
 #Test MAPE by income context
@@ -1455,25 +1475,30 @@ sum2<-st_join(Miami_test_new, tracts17) %>%
   st_drop_geometry()
 sum2<-sum2[,c("incomeContext","mean.MAPE")]
 
+# create table of MAPE of income context
+
 kable(sum2,format = "html", caption = "Test set MAPE by neighborhood income context", col.names = c('', '')) %>% 
   kable_styling() %>%
   footnote(general_title = "\n",
            general = "Table 1.4.5")
 
-
 ```
 
 # 1.5 Discussion
-On the whole, our model appears to predict prices reasonably well but is far from an ideal model. Analyzing the results of our model revealed several aspects that appear problematic and warrant further consideration:
 
-Variable Selection
-Interestingly, the variable set we found to produce the lowest mean absolute error consisted mostly of spatial variables. Only the variable "Dock" relates to the physical nature of the home in question. To our surprise, other asset level variables such as square footage and number of bedrooms did not reduce error when included in the model. We hypothesize that neighborhood and average sale price of nearby homes are highly correlated with home size and possibly causing colinearity issues when these variables are included. However, this leaves our model ill-equipped to accurately predict in situations where a house varies considerably from those nearby it, for example when valuing an unusually small house in a neighborhood of large homes. 
+On the whole, our model appears to predict prices reasonably well but is far from an ideal model. Analyzing the results of our model, revealed several aspects that appear problematic and warrant further consideration:
 
-Error vs. Home Price
+## Variable Selection
+
+Interestingly, the variable set we found to produce the lowest mean absolute error consisted mostly of spatial structure features. Only the variable "Dock" relates to the physical nature of the home in question. To our surprise, other asset level variables such as square footage and number of bedrooms did not reduce error when included in the model. We hypothesize that neighborhood and average sale price of nearby homes are highly correlated with home size and possibly causing colinearity issues when these variables are included. However, this leaves our model ill-equipped to accurately predict in situations where a house varies considerably from those nearby it, for example when valuing an unusually small house in a neighborhood of large homes. 
+
+## Error vs. Home Price
+
 Our graph of predicted versus actual prices reveals the tendency of our model to increasingly under-predict as sale values increase. We hypothesize that the source of this error may be rooted in the variable selection of our model, which as discussed above lacks asset level features. Because the model cannot see square footage or bedroom count for example, it would plausibly under-predict the value of very expensive homes that are larger than others in close proximity. The significantly higher MAPE that we observe in high-income vs. lower-income neighborhoods is also likely caused by the model's greater error when predicting very expensive homes. 
 
-Spatial Error
-Our Moran's I test reveals that there is a non-trivial amount of spatial autocorrelation of our model's errors that cannot be explained by random chance. Although completely eliminating spatial error may be challenging, a value of .15 is not ideal. We would be interested in seeing whether this spatial error would be resolved by addressing some of the more glaring problems relating to variable selection. 
+## Spatial Error
+
+Our Moran's I test reveals that there is a non-trivial amount of spatial autocorrelation of our model's errors that cannot be explained by random chance. Although completely eliminating spatial error may be challenging, our value was not ideal. We would be interested in seeing whether this spatial error could be resolved by addressing some of the more glaring problems relating to variable selection. 
 
 # 1.6 Conclusion
 
