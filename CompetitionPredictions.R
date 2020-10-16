@@ -168,4 +168,4 @@ reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>%
 
 secret_preds3 <- predict(reg.training, newdata = Miami_Test)
 output_preds3 <- data.frame(prediction = secret_preds, Folio = Miami_Test$Folio, team_name = "Bonestroo_Rawn")
-
+write.csv(output_preds, "Bonestroo-Rawn.csv")

@@ -28,6 +28,21 @@ table, td, th {
 # 1.1 Introduction
 In order to better factor in local intelligence, our team was tasked with building a better predictive model of home prices for Miami, Florida (Miami Beach was also included, but for brevity the combined municipalities will be referred to as Miami). Using data gathered from online open data resources and OLS regression, we created a model that predicted sale prices. We attempted to minimize average error and create a model that is both accurate and generalizable across space. While we initially collected many variables, we found that a simple model including only four features was best able to predict sale prices. This is because our models with many features included colinear features, and thus, were overfitted. By including neighborhood and the average sale price of surrounding homes, we were able to better predict sale prices across neighborhoods and, importantly, within neighborhoods. The following map depicts the the distribution of sale prices of the provided homes across Miami.
 
+# Objective:
+To build a model that predicts home values in Miami Florida as accurately as possible, utilizing a regression model and available public data. 
+
+# 1.1 Executive Summary
+
+# Motivation:
+The question of "what is a home worth?" has a simple answer: whatever a buyer is willing to pay. But predicting what a buyer is willing to pay before a sale has occurred is no easy feat. Houses are not commodity goods. The many attributes that make a home valuable, everything from the number of bedrooms to the amenities of the neighborhood it is located in, vary significantly from home to home. Further complicating the problem is the fact that these characteristics are valued differently across different types of buyers, neighborhoods, and markets. This model attempts to address some of the challenges inherent in predicting home prices by utilizing the power of ordinary least squares regression and the insight offered by local spatial data. 
+
+#Process:
+Our process consisted of first gathering available datasets that held promise as predictors of home value. After wrangling the data, we evaluated each variable against several statistical criteria. After testing many combinations, we included in our final model a set of variables that most effectively minimized mean average error (MAE) while attempting to be as accurate and generalizable as possible.
+
+#Results
+Although we evaluated many variables, we found that a simple model including only four features minimized MAE when predicting sale prices. Including more features resulted often in higher r-squared values, but also in higher MAE, suggesting that a more simple model is most effective for avoiding colinearity and overfitted. Our model is more accurate than it is generalizable.
+
+
 ```{r setup, results='hide', error=FALSE, message=FALSE, warning=FALSE}
 setwd("C:/Users/Hannah/Documents/Penn/Fall 2020/CPLN-592/Assignments/Assignment 2/CPLN592Assignment2")
 library(tidyverse)
@@ -121,6 +136,7 @@ q5 <- function(variable) {as.factor(ntile(variable, 5))}
 # Load hexadecimal color palette
 
 palette5 <- c("#25CB10", "#5AB60C", "#8FA108",   "#C48C04", "#FA7800")
+palette6 <- c("#C48C04", "#FA7800","#8FA108",   "#5AB60C", "#25CB10")
 
 # Load nn function
 
@@ -187,8 +203,7 @@ Miami_Houses$neighborhood2 <- ifelse(grepl("East Grove", Miami_Houses$neighborho
                                      ifelse(grepl("Bird Grove West", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"Bird Grove East",
                                             ifelse(grepl("Bay Heights", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
                                                    ifelse(grepl("Vizcaya", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
-                                                          ifelse(grepl("Fair Isle", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
-                                                                 Miami_Houses$neighborhood2<-Miami_Houses$neighborhood)))))
+                                                          ifelse(grepl("Fair Isle", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove", Miami_Houses$neighborhood2<-Miami_Houses$neighborhood)))))
 
 
 # Load demographic data from ACS
@@ -812,7 +827,7 @@ These plots suggest a positive correlation exists. In all four plot, the regress
 ```{r Correlation bar charts, results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1.5,fig.width=10}
 
 st_drop_geometry(Miami_TrainingGeom) %>% 
-  dplyr::select(SalePrice, Zoning, midschool, Dock, neighborhood) %>%
+  dplyr::select(SalePrice, Zoning, midschool, Dock, neighborhood2) %>%
   filter(SalePrice <= 1000000) %>%
   gather(Variable, Value, -SalePrice) %>% 
    ggplot(aes(Value, SalePrice)) +
@@ -860,64 +875,71 @@ ggplot() +
   subtitle="Miami, Florida", 
        caption= "Figure 1.2.6") +
   mapTheme()
+
+# Plot distribution of sale prices over neighborhoods
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data = Miami_TrainingGeom, aes(colour = q5(SalePriceAvg)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette5,
+                      labels=qBr(Miami_TrainingGeom,"SalePriceAvg"),
+                      name="Quintile\nBreaks") +
+  labs(title="Average Sale Price of Five Nearest Neighbors",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.2.7") +
+  mapTheme()
 ```
 
 Figure 1.2.5 shows that not surprisingly, homes with docks are clustered near the shore and are especially prevalent in Miami Beach. Figures 1.2.4 and Figures 1.2.6 show an interesting pattern between average distance to the nearest two daycare centers and zoning becomes apparent. It looks like daycare centers are less prevalent in areas that are in the zoning class 0100- single family- general. For the most zoning tends to change along neighborhood lines. 
 
-# 1.2 Methods
+# 1.3 Methods
 
 We created the desired sale price prediction model using the following steps. First, we examined the correlation between each feature and sale price, looking for those features with the strongest relationships. We also examined the correlations between each feature to look for collinearity. Using this information, we narrowed down our features to exclude features that were strongly correlated to each other and those with a weak correlation to sale price. We then found the R^2 and MAE for the model which includes all of our variables as a baseline. R^2 is the proportion of variance in sale price which can be explained by our features. While R^2 shows how well our model fits the data we have, a high R^2 value doesn't mean the model is good at predicting prices of unseen data. MAE or mean absolute error is a better measure of how good a model is good at prediction. The MAE is found by splitting the house points we have into a training and test set. Using the model created with the training set we predicted sale prices for the test set. These are then compared to the actual known sale prices of the test set to determine the error. The MAE is average of the absolute error for each of the predicted sale prices. We created a function which determined every single combination of features which could go into a model. We then had a function test every combination to determine which combinations of features produced the lowest MAE. We then used cross-validation to test the models across different random samples of data. We also examined if our model was good at predicting across neighborhoods and within neighborhoods and checked to see if our larger absolute errors were clustered.
 
 # 1.4 Results
 ## Ordinary Least Squares Regression (OLS)
-
+We evaluated the predictive power of different combinations of variables by dividing the dataset into a "Training" set and a "Test" set that allow us to test how our model might perform on a real dataset. 60% of houses with known sale values was grouped randomly into the Training Set, and 40% was grouped into the Test Set. A regression model is then created with the Training Set using a selection of variables and summarized below.
 
 ``````{r OLS, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=8}
 
+
+
+# create training and test set
 inTrain <- createDataPartition(
   y = paste(Miami_TrainingGeom$neighborhood2), 
   p = .60, list = FALSE)
 Miami_training_new <- Miami_TrainingGeom[inTrain,] 
 Miami_test_new <- Miami_TrainingGeom[-inTrain,]  
 
-reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_TrainingGeom) %>% 
-                     dplyr::select(SalePrice,lagSQ,lagLot,Dock,Whirlpool,Carport,Patio,
-                                   Pool,pctPoverty,pctBachelors,pctWhite,MedRent,MedHHInc,
-                                   marinas_nn2,hospitals_nn3,pschool_nn3,contamination_nn3,
-                                   colleges_nn3,daycare_nn2,schooldist,midschool,neighborhood2,SalePriceAvg,
-                                   Highwaydist,Metros_nn1,GolfCourseDist,waterDist,beachDist,
-                                   crime_nn2,ActualSqFt,YearBuilt,Stories,Bath,Bed,LotSize,Zoning))
 
-reg.training2 <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
-                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,midschool))
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,Dock))
 
 
-#Create table of regression  output
-stargazer(reg.training, type="html", out="models.htm", report=('vc*p'),
-          header = FALSE,
-  title = "OLS Summary Results",
-  notes = "Table 1.4.1 ",
-                notes.align = "l",
-                float = TRUE,
-                table.placement = "H")
+reg.summary <- coef(summary(reg.training))
+kable(reg.summary,format = "html", caption = "Title of the table") %>% 
+  kable_styling()
+first_column <- c("Observations","R2", "Adjusted R2","Residual Std. Error","F Statistic")
+second_column <- c("1,756","0.767","0.755","951,616.300(df = 1665)","60.970*** (df = 90; 1665) (p = 0.000)")
 
-#Create table of regression  output
-stargazer(reg.training2, type="html", out="models.htm", report=('vc*p'),
-          header = FALSE,
-  title = "OLS Summary Results of Model Used",
-  notes = "Table 1.4.2 ",
-                notes.align = "l",
-                float = TRUE,
-                table.placement = "H")
+regression_stats <- data.frame(first_column, second_column)
+
+kable(regression_stats,format = "html", col.names = c('', '')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n",
+           general = "Table 1.4.3")
+
+
 ```
 ## MAE and MAPE (Single Test)
 
+The Test Set was given several new columns which represent the predicted sale price using the regression model created previously. The output tells us the mean absolute error (MAE) and mean absolute percentage error (MAPE) of the Test Set.
 ``````{r MAE and MAPE, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=24, fig.height=2}
 
 # single test set
 Miami_test_new <-
   Miami_test_new %>%
-  mutate(SalePrice.Predict = predict(reg.training2, Miami_test_new),
+  mutate(SalePrice.Predict = predict(reg.training, Miami_test_new),
          SalePrice.Error = SalePrice.Predict - SalePrice,
          SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
          SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
@@ -932,34 +954,399 @@ kable(Single_test,format = "html", caption = "Title of the table",col.names = c(
   footnote(general_title = "\n",
            general = "Table 1.4.3")
 
+
 ```
 
-``````{r cross-validation, results='asis',error=FALSE, message=FALSE, warning=FALSE,fig.width=12, fig.height=2}
+The Test Set is further analyzed by running a K-Fold Cross Validation technique. Instead of calculating the MAE and MAPE based on one randomly selected Test Set, this approach allows us to repeat that process 100 times and then average the results together. The results can be seen in the histogram below.
 
-#Cross validation (3.4.2)
-  
+```{r Cross Validation,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Cross validate the data using a 100 fold method
+
+#-Provide the results of your cross-validation tests. This includes mean and standard deviation #MAE. Do 100 folds and plot your cross-validation MAE as a histogram. Is your model #generalizable to new data?
+
 fitControl <- trainControl(method = "cv", number = 100)
 set.seed(825)
 
 reg.cv <- 
   train(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
-          dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Zoning,midschool), 
+          dplyr::select(SalePrice,
+                        neighborhood2,
+                         SalePriceAvg,
+                          Dock,
+                          Zoning), 
         method = "lm", trControl = fitControl, na.action = na.pass)
-MAE <-mean(reg.cv$resample[,3])
-R2<-mean(reg.cv$resample[,2])
-RMSE <-mean(reg.cv$resample[,1])
-Kfoldresults <- array(c(RMSE,R2,MAE), dim=c(1,2,3))
-kable(Kfoldresults,format = "html", caption = "Title of the table",col.names = c('Root Mean Square Error', 'R^2', 'Mean Absolute Error')) %>% 
+
+first_column <- c("RMSE","R2","MAE")
+second_column <- c(mean(reg.cv$resample[,1]),mean(reg.cv$resample[,2]),mean(reg.cv$resample[,3]))
+
+kfold_results <- data.frame(first_column, second_column)
+
+kable(kfold_results,format = "html", caption = "Title of the table", col.names = c('', '')) %>% 
   kable_styling() %>%
   footnote(general_title = "\n",
            general = "Table 1.4.3")
-reg.cv
-#First 5 folds
-reg.cv$resample[1:5,]
-#Mean for all 100 MAE observations
-mean(reg.cv$resample[,3])
+
 #Histogram of MAEs
-hist(reg.cv$resample[,3])
+
+MAEs <- data.frame("MAE"=reg.cv$resample[,3],"number"=1:100)
+ggplot(data=MAEs, aes(MAEs$MAE)) + 
+  geom_histogram(breaks=seq(0, 1500000, by=10000), 
+                 fill="#25CB10" 
+                 ) + 
+  labs(title="Histogram for Age", x="MAEs", y="Count",  subtitle="Miami, Florida", 
+       caption= "Figure 1.1.1")+
+  plotTheme()
+
+
+
+```
+```{r Test Regression,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Rename regression to "Baseline Regression"
+Miami_test_new <-
+  Miami_test_new %>%
+  mutate(Regression = "Baseline Regression",
+         SalePrice.Predict = predict(reg.training, Miami_test_new),
+         SalePrice.Error = SalePrice.Predict - SalePrice,
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
+         SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
+  filter(SalePrice < 5000000) 
+```
+
+Plotting the prices predicted by the model against actual observed prices allows us to diagnose where the model seems to be predicting accurately and where it is not. Our predicted line (Green) starts above the perfect prediction line (Orange), suggesting that we are over-predicting home values for very low priced homes. However, this relationship soon reverses and the graph reveals that our model is under-predicting the price of homes as the true sale price increases. 
+
+```{r Plot predicted prices,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Plot prediction prices as function of observed prices
+Miami_test_new %>%
+  dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
+  ggplot(aes(SalePrice, SalePrice.Predict)) +
+  geom_point() +
+  stat_smooth(aes(SalePrice, SalePrice), 
+              method = "lm", se = FALSE, size = 1, colour="#FA7400") + 
+  stat_smooth(aes(SalePrice.Predict, SalePrice), 
+              method = "lm", se = FALSE, size = 1, colour="#25CB10") +
+  facet_wrap(~Regression) +
+  labs(title="Predicted sale price as a function of observed price",
+       subtitle="Orange line represents a perfect prediction; Green line represents prediction") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "black")) 
+
+```
+
+
+
+```{r residuals map,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+
+# Plot distribution of sale prices over neighborhoods
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data = Miami_test_new, aes(colour = q5(SalePrice.AbsError)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette5,
+                      labels=qBr(Miami_test_new,"SalePrice.AbsError"),
+                      name="Quintile\nBreaks") +
+  labs(title="Average Sale Price of Five Nearest Neighbors",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.2.7") +
+  mapTheme()
+
+
+
+
+```
+
+
+
+Next we attempted to answer the question of whether errors in our model were spatially clustered. To achieve this, we looked at the Spatial Lag of each house. 
+
+```{r Spatial Lag,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Calculate and plot spatial lag of the training set
+Miami_Training.centroids<-st_centroid(Miami_Training)
+coords <- st_centroid(st_geometry(Miami_Training), of_largest_polygon=TRUE)
+neighborList <- knn2nb(knearneigh(coords, 5))
+spatialWeights <- nb2listw(neighborList, style="W")
+Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
+
+#plot(Miami_Training$lagPrice)
+```
+
+```{r Spatial Lag2,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Calculate and plot spatial lag of the training set
+Miami_Training.centroids<-st_centroid(Miami_Training)
+coords <- st_centroid(st_geometry(Miami_Training), of_largest_polygon=TRUE)
+neighborList <- knn2nb(knearneigh(coords, 5))
+spatialWeights <- nb2listw(neighborList, style="W")
+Miami_Training$lagPrice <- lag.listw(spatialWeights, Miami_Training$SalePrice)
+
+plot(Miami_Training$lagPrice)
+
+#Calculate and plot sale price error for the test set
+coords.test <- st_centroid(st_geometry(Miami_test_new), of_largest_polygon=TRUE)
+neighborList.test <- knn2nb(knearneigh(coords.test, 5))
+spatialWeights.test <- nb2listw(neighborList.test, style="W")
+
+Miami_test_plot <- Miami_test_new
+Miami_test_plot[is.na(Miami_test_plot)] <- 0
+Miami_test_plot$lagPriceError <- lag.listw(spatialWeights.test, Miami_test_plot$SalePrice.Error)
+       
+plot(Miami_test_plot$lagPriceError, Miami_test_plot$SalePrice.Error)
+
+ggplot(data=Miami_test_plot, aes(lagPriceError,SalePrice.Error)) +
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  labs(title="Histogram for Age", x="MAEs", y="Count",  subtitle="Miami, Florida", 
+       caption= "Figure 1.1.1")+
+  plotTheme()
+
+
+plot(Miami_test_plot$lagPriceError, Miami_test_plot$SalePrice.Error)
+
+```
+
+We also examined spatial autocorrelation by looking at Moran's I, which is represented by the orange line on the graph. The fact that this line is located at .15 implies that there does appear to be some spatial autocorrelation to the clustering of our errors than would be explained by random chance. 
+
+```{r Moran }
+#Calculate observed and permuted Moran's I
+
+Miami_test_newMI<-Miami_test_new[,c( "SalePrice.Error" )]
+Miami_test_newMI <-na.omit(Miami_test_newMI)
+coords.test <- st_centroid(st_geometry(Miami_test_newMI), of_largest_polygon=TRUE)
+neighborList.test <- knn2nb(knearneigh(coords.test, 5))
+spatialWeights.test <- nb2listw(neighborList.test, style="W")
+
+moranTest <- moran.mc(Miami_test_newMI$SalePrice.Error, 
+                      spatialWeights.test, nsim = 999)
+
+ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
+  geom_histogram(binwidth = 0.01) +
+  geom_vline(aes(xintercept = moranTest$statistic), colour = "#FA7800",size=1)+
+  labs(title="Observed and permuted Moran's I",
+       subtitle= "Observed Moran's I in orange",
+       x="Moran's I",
+       y="Count",
+       caption="Public Policy Analytics, Figure 6.8") +
+  plotTheme()
+
+```
+
+```{r Predicted Maps,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
+# predicting Challenge set
+Miami_Houses <- 
+  rbind(
+    st_read("studentsData.geojson") %>%
+      st_transform(st_crs('EPSG:6346')))
+Miami_Houses <- st_set_crs(Miami_Houses, 6346)
+
+# Load neighborhood boundaries
+
+nhoodsmiami <- 
+  rbind(
+    st_read("https://opendata.arcgis.com/datasets/2f54a0cbd67046f2bd100fb735176e6c_0.geojson") %>%
+      st_transform('EPSG:6346'))
+nhoodsmiami <- st_set_crs(nhoodsmiami, 6346)
+
+nhoodsmiamibeach <-
+  rbind(st_read("neighborhoods/miamineighborhoods.shp")%>%
+          st_transform('EPSG:6346'))
+nhoodsmiamibeach <- st_set_crs(nhoodsmiamibeach,6346)
+
+nhoodsmiami <- nhoodsmiami[2]
+nhoodsmiamibeach <-nhoodsmiamibeach[1]%>%
+  rename(LABEL = Name)
+nhoodsmiami <-st_zm(nhoodsmiami, drop = TRUE, what = "ZM")
+nhoodsmiamibeach <-st_zm(nhoodsmiamibeach, drop=TRUE, what = "ZM")
+nhoods <- rbind(nhoodsmiami,nhoodsmiamibeach)%>%
+  rename(neighborhood = LABEL)
+
+
+# Create column with neighborhoods name
+
+Miami_Houses <- st_join(Miami_Houses, nhoods, join = st_within)
+
+# fix neighborhoods with limited entries
+
+Miami_Houses$neighborhood2 <- ifelse(grepl("East Grove", Miami_Houses$neighborhood),Miami_Houses$neighborhood2<-"North Grove",
+                                     ifelse(grepl("Bird Grove West", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"Bird Grove East",
+                                            ifelse(grepl("Bay Heights", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
+                                                   ifelse(grepl("Vizcaya", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",
+                                                          ifelse(grepl("Fair Isle", Miami_Houses$neighborhood), Miami_Houses$neighborhood2<-"North Grove",Miami_Houses$neighborhood2<-Miami_Houses$neighborhood)))))
+
+# create columns for house attributes
+
+Miami_Houses$Pool <- ifelse(grepl("Pool", Miami_Houses$XF1), Miami_Houses$Pool<-"yes",
+                            ifelse(grepl("Pool", Miami_Houses$XF2), Miami_Houses$Pool<-"yes",
+                                   ifelse(grepl("Pool", Miami_Houses$XF3), Miami_Houses$Pool<-"yes",Miami_Houses$Pool<-"no")))
+
+Miami_Houses$Patio <- ifelse(grepl("Patio", Miami_Houses$XF1), Miami_Houses$Patio<-"yes",
+                             ifelse(grepl("Patio", Miami_Houses$XF2), Miami_Houses$Patio<-"yes",
+                                    ifelse(grepl("Patio", Miami_Houses$XF3), Miami_Houses$Patio<-"yes",Miami_Houses$Patio<-"no")))
+
+Miami_Houses$Carport <- ifelse(grepl("Carport", Miami_Houses$XF1), Miami_Houses$Carport<-"yes",
+                               ifelse(grepl("Carport", Miami_Houses$XF2), Miami_Houses$Carport<-"yes",
+                                      ifelse(grepl("Carport", Miami_Houses$XF3), Miami_Houses$Carport<-"yes",Miami_Houses$Carport<-"no")))
+
+Miami_Houses$Whirlpool <- ifelse(grepl("Whirlpool", Miami_Houses$XF1), Miami_Houses$Whirlpool<-"yes",
+                                 ifelse(grepl("Whirlpool", Miami_Houses$XF2), Miami_Houses$Whirlpool<-"yes",
+                                        ifelse(grepl("Whirlpool", Miami_Houses$XF3), Miami_Houses$Whirlpool<-"yes",Miami_Houses$Whirlpool<-"no")))
+
+Miami_Houses$Dock <- ifelse(grepl("Dock", Miami_Houses$XF1), Miami_Houses$Dock<-"yes",
+                            ifelse(grepl("Dock", Miami_Houses$XF2), Miami_Houses$Dock<-"yes",
+                                   ifelse(grepl("Dock", Miami_Houses$XF3), Miami_Houses$Dock<-"yes",Miami_Houses$Dock<-"no")))
+
+# create training data
+
+Miami_Training <- subset(Miami_Houses, toPredict %in% 0)
+
+#create test data
+
+`%nin%` = Negate(`%in%`)
+Miami_Test <- subset(Miami_Houses,toPredict %nin% 0)
+
+# finding average sale price of 5 nearest neighbors Test set
+
+Miami_TestPPP <-as.ppp(st_centroid(Miami_Test))
+Miami_TrainingPPP<-as.ppp(st_centroid(Miami_Training))
+
+Miami_Test$nnHouse1 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=1)
+Miami_Test$nnHouse2 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=2)
+Miami_Test$nnHouse3 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=3)
+Miami_Test$nnHouse4 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=4)
+Miami_Test$nnHouse5 <- nncross(Miami_TestPPP, Miami_TrainingPPP, what="which",k=5)
+Miami_Training$ID <- 1:2627
+
+price <- function(data) {
+  price1<-Miami_Training$SalePrice[Miami_Training$ID==data]
+  return(price1)
+}
+
+Miami_Test$price1 <- lapply(Miami_Test$nnHouse1,price)
+Miami_Test$price2 <- lapply(Miami_Test$nnHouse2,price)
+Miami_Test$price3 <- lapply(Miami_Test$nnHouse3,price)
+Miami_Test$price4 <- lapply(Miami_Test$nnHouse4,price)
+Miami_Test$price5 <- lapply(Miami_Test$nnHouse5,price)
+
+Miami_Test$price1 <- as.numeric(Miami_Test$price1)
+Miami_Test$price2 <- as.numeric(Miami_Test$price2)
+Miami_Test$price3 <- as.numeric(Miami_Test$price3)
+Miami_Test$price4 <- as.numeric(Miami_Test$price4)
+Miami_Test$price5 <- as.numeric(Miami_Test$price5)
+
+Miami_Test$SalePriceAvg <- (Miami_Test$price1+Miami_Test$price2+Miami_Test$price3+Miami_Test$price4+Miami_Test$price5)/5
+
+# finding average sale price of 5 nearest neighbors Training Set
+
+Miami_Training$nnHouse1 <- nncross(Miami_TrainingPPP, Miami_TrainingPPP, what="which",k=2)
+Miami_Training$nnHouse2 <- nncross(Miami_TrainingPPP, Miami_TrainingPPP, what="which",k=3)
+Miami_Training$nnHouse3 <- nncross(Miami_TrainingPPP, Miami_TrainingPPP, what="which",k=4)
+Miami_Training$nnHouse4 <- nncross(Miami_TrainingPPP, Miami_TrainingPPP, what="which",k=5)
+Miami_Training$nnHouse5 <- nncross(Miami_TrainingPPP, Miami_TrainingPPP, what="which",k=6)
+
+price <- function(data) {
+  price1<-Miami_Training$SalePrice[Miami_Training$ID==data]
+  return(price1)
+}
+
+Miami_Training$price1 <- lapply(Miami_Training$nnHouse1,price)
+Miami_Training$price2 <- lapply(Miami_Training$nnHouse2,price)
+Miami_Training$price3 <- lapply(Miami_Training$nnHouse3,price)
+Miami_Training$price4 <- lapply(Miami_Training$nnHouse4,price)
+Miami_Training$price5 <- lapply(Miami_Training$nnHouse5,price)
+
+Miami_Training$price1 <- as.numeric(Miami_Training$price1)
+Miami_Training$price2 <- as.numeric(Miami_Training$price2)
+Miami_Training$price3 <- as.numeric(Miami_Training$price3)
+Miami_Training$price4 <- as.numeric(Miami_Training$price4)
+Miami_Training$price5 <- as.numeric(Miami_Training$price5)
+
+Miami_Training$SalePriceAvg <- (Miami_Training$price1+Miami_Training$price2+Miami_Training$price3+Miami_Training$price4+Miami_Training$price5)/5
+
+
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning))
+
+Miami_Test <-
+  Miami_Test %>%
+  mutate(SalePrice.Predict = predict(reg.training, Miami_Test),
+         SalePrice.Error = SalePrice.Predict - SalePrice,
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
+         SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
+  filter(SalePrice < 5000000)
+
+Miami_Testmap <- Miami_Test[,c("SalePrice.Predict")]
+Miami_Testmap$Type <- "Challenge Set"
+
+# predicting training set
+
+reg.training <- lm(SalePrice ~ ., data = st_drop_geometry(Miami_Training) %>% 
+                      dplyr::select(SalePrice,neighborhood2,SalePriceAvg,Dock,Zoning))
+
+Miami_Training <-
+  Miami_Training %>%
+  mutate(SalePrice.Predict = predict(reg.training, Miami_Training),
+         SalePrice.Error = SalePrice.Predict - SalePrice,
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice),
+         SalePrice.APE = (abs(SalePrice.Predict - SalePrice)) / SalePrice.Predict)%>%
+  filter(SalePrice < 5000000)
+Miami_Trainingmap <- Miami_Training[,c("SalePrice.Predict")]
+Miami_Trainingmap$Type <- "Training Set"
+
+MAEPrediction <- rbind(Miami_Testmap, Miami_Trainingmap)
+
+
+ggplot() +
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(data =MAEPrediction, aes(colour = q5(SalePrice.Predict)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette5,
+                      labels=qBr(Miami_Training,"SalePrice.Predict"),
+                      name="Quintile\nBreaks") +
+  labs(title="Sale Price",
+  subtitle="Miami, Florida", 
+       caption= "Figure 1.1.1") +
+  facet_wrap(~Type)+
+  mapTheme()
+
+```
+
+In one neighborhood most likely due to the under prediction of very expensive houses.
+```{r Generalizability,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Assess generalizability of the neighborhood model
+nhoods$neighborhood2 = nhoods$neighborhood
+
+st_drop_geometry(Miami_test_new) %>%
+  group_by(Regression, neighborhood) %>%
+  summarize(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
+  ungroup() %>% 
+  left_join(nhoods) %>%
+  st_sf() %>%
+  ggplot() + 
+  geom_sf(data = nhoods, fill = "grey40") +
+  geom_sf(aes(fill = mean.MAPE)) +
+  geom_sf(data = Miami_test_new, colour = "black", size = .5) +
+  facet_wrap(~Regression) +
+  scale_fill_gradient(low = palette5[5], high = palette5[1],
+                      name = "MAPE") +
+  labs(title = "Mean test set MAPE by neighborhood") +
+  mapTheme()
+
+```
+
+```{r MAPE Plot,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
+#Plot MAPE by neighborhood as function of mean price by neighborhood
+
+MAPE.Summary <- 
+  st_drop_geometry(Miami_test_new) %>%
+  group_by(neighborhood) %>%
+  summarize(mean.MAPE = mean(SalePrice.APE),
+            mean.Price =mean(SalePrice))
+ggplot(data=MAPE.Summary, aes(mean.Price,mean.MAPE)) +
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  labs(title="Histogram for Age", x="Mean Price", y="MAPE",  subtitle="Miami, Florida", 
+       caption= "Figure 1.1.1")+
+  plotTheme()
+
+
 
 ```
 
@@ -992,5 +1379,80 @@ plot(d)
 
 
 ```
+
+A good model is generalizable - that is it predicts accurately across different sets of data that it has not seen before. In order to assess the generalizability of the model, we broke out Miami census tracts into two groups according to Race and Income. The first comparison tests MAPE across majority white and majority non-white tracts, and finds that the MAPE is constant at 23%. This suggests that there is no obvious error in the model that correlates with racial composition of neighborhoods. The second tests MAPE across high-income and low-income tracts, and finds a somewhat sizeable difference of 30% for high-income tracts and 21% for low-income tracts. This finding suggests that the model is not fully controlling for some factor related to income, and that the model appears to produce more errors when evaluating high-income tracts.
+
+```{r Census Data,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Import census data to assess generalizability
+tracts17 <- 
+  get_acs(geography = "tract", variables = c("B01001_001E","B01001A_001E","B06011_001"), 
+          year=2017, state=12, county="Miami-Dade County", geometry=T, output="wide") %>%
+  st_transform('EPSG:6346')  %>%
+  rename(TotalPop = B01001_001E,
+         NumberWhites = B01001A_001E,
+         Median_Income = B06011_001E) %>%
+  mutate(percentWhite = NumberWhites / TotalPop,
+         raceContext = ifelse(percentWhite > .5, "Majority White", "Majority Non-White"),
+         incomeContext = ifelse(Median_Income > 32322, "High Income", "Low Income"))
+
+miami <- st_union(nhoods)
+tracts17.miami.intersect <- st_intersects(miami, tracts17)
+tracts17miami <- tracts17[tracts17.miami.intersect[[1]],]
+
+grid.arrange(ncol = 2,
+             ggplot() + geom_sf(data = na.omit(tracts17miami), aes(fill = raceContext)) +
+               scale_fill_manual(values = c("#25CB10", "#FA7800"), name="Race Context") +
+               labs(title = "Race Context") +
+               mapTheme() + theme(legend.position="bottom"), 
+             ggplot() + geom_sf(data = na.omit(tracts17miami), aes(fill = incomeContext)) +
+               scale_fill_manual(values = c("#25CB10", "#FA7800"), name="Income Context") +
+               labs(title = "Income Context") +
+               mapTheme() + theme(legend.position="bottom"))
+
+```
+
+
+```{r MAPE by Race,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Test MAPE by racial context
+st_join(Miami_test_new, tracts17) %>% 
+  group_by(Regression, raceContext) %>%
+  summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
+  st_drop_geometry() %>%
+  spread(raceContext, mean.MAPE) %>%
+  kable(caption = "Test set MAPE by neighborhood racial context")
+
+```
+
+```{r Mape by Income,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+#Test MAPE by income context
+st_join(Miami_test_new, tracts17) %>% 
+  filter(!is.na(incomeContext)) %>%
+  group_by(Regression, incomeContext) %>%
+  summarize(mean.MAPE = scales::percent(mean(SalePrice.APE, na.rm = T))) %>%
+  st_drop_geometry() %>%
+  spread(incomeContext, mean.MAPE) %>%
+  kable(caption = "Test set MAPE by neighborhood income context")
+
+```
+#Discussion
+On the whole, our model appears to predict prices reasonably well but is far from an ideal model. Analyzing the results of our model revealed several aspects that appear problematic and warrant further consideration:
+
+Variable Selection
+Interestingly, the variable set we found to produce the lowest mean absolute error consisted mostly of spatial variables. Only the variable "Dock" relates to the physical nature of the home in question. To our surprise, other asset level variables such as square footage and number of bedrooms did not reduce error when included in the model. We hypothesize that neighborhood and average sale price of nearby homes are highly correlated with home size and possibly causing colinearity issues when these variables are included. However, this leaves our model ill-equipped to accurately predict in situations where a house varies considerably from those nearby it, for example when valuing an unusually small house in a neighborhood of large homes. 
+
+Error vs. Home Price
+Our graph of predicted versus actual prices reveals the tendency of our model to increasingly under-predict as sale values increase. We hypothesize that the source of this error may be rooted in the variable selection of our model, which as discussed above lacks asset level features. Because the model cannot see square footage or bedroom count for example, it would plausibly under-predict the value of very expensive homes that are larger than others in close proximity. The significantly higher MAPE that we observe in high-income vs. lower-income neighborhoods is also likely caused by the model's greater error when predicting very expensive homes. 
+
+Spatial Error
+Our Moran's I test reveals that there is a non-trivial amount of spatial autocorrelation of our model's errors that cannot be explained by random chance. Although completely eliminating spatial error may be challenging, a value of .15 is not ideal. We would be interested in seeing whether this spatial error would be resolved by addressing some of the more glaring problems relating to variable selection. 
+
+#Conclusion
+Our model is imperfect, but it does offer a significant improvement over predictions based solely on the variables in the original dataset. This tells us that local spatial data does serve as a valuable predictive tool in accurately valuing homes. We would be interested in discussing our model with Zillow to determine whether they have considered the same spatial variables we did, and whether there are any that might improve their models. However, with a mean absolute error of over $200,000, or over 20% of average home sale value, our model is unlikely to outperform the Zestimate in minimizing errors.  
+
+There is clearly significant room for our model to improve, and to do so we would could consider:
+1. Further analysis of apparent errors in the model. Our model seems to consistently under-predict at higher home values, particularly at price points higher than 2.5MM. 
+2. Inclusion of more asset level variables. In order to be more accurate, it seems likely that the model would need to be able to identify homes that have physical features that differ greatly from others located nearby.
+3. Assessment of other spatial data. We also attempted to include several other variables that exceeded our technical ability to implement, such as WalkScore and TransitScore. 
+
 
 

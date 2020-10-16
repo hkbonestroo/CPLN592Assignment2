@@ -935,6 +935,7 @@ spatialWeights.test <- nb2listw(neighborList.test, style="W")
 Miami_test_plot <- Miami_test_new
 Miami_test_plot[is.na(Miami_test_plot)] <- 0
 Miami_test_plot$lagPriceError <- lag.listw(spatialWeights.test, Miami_test_plot$SalePrice.Error)
+       
 plot(Miami_test_plot$lagPriceError, Miami_test_plot$SalePrice.Error)
 ```
 
@@ -979,6 +980,7 @@ ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
 
 
 ```{r MAE and MAP Table,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
+
 #Create table for MAE and MAPE
 st_drop_geometry(Miami_test_new) %>%
   gather(Variable, Value, -Regression, -neighborhood2) %>%
@@ -1031,12 +1033,12 @@ st_drop_geometry(Miami_test_new) %>%
 ```
 ```{r MAPE Plot,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=.5}
 
-#Plot MAPE by neighborhood as function of mean price by neighborhood
-#Miami_test_new %>%
- # group_by(neighborhood2) %>%
-  #summarize(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
-  #summarize(mean.Price = mean(SalePrice, na.rm = T)) %>%
-  #ggplot(aes(mean.MAPE, mean.Price))
+Plot MAPE by neighborhood as function of mean price by neighborhood
+Miami_test_new %>%
+ group_by(neighborhood2) %>%
+  summarize(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
+  summarize(mean.Price = mean(SalePrice, na.rm = T)) %>%
+  ggplot(aes(mean.MAPE, mean.Price))
 
 ```
 
