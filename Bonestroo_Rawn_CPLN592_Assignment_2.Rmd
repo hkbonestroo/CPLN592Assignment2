@@ -1112,7 +1112,7 @@ grid.arrange(plot1,plot2, ncol=2)
 
 We also examined spatial autocorrelation by looking at Moran's I, which is represented by the orange line on the graph. The fact that this line is located at .15 implies that there does appear to be some spatial autocorrelation to the clustering of our errors than would be explained by random chance. 
 
-```{r Moran,results='hide', error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+```{r Moran,results='hide', echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,.asp=1}
 #Calculate observed and permuted Moran's I
 
 Miami_test_newMI<-Miami_test_new[,c( "SalePrice.Error" )]
@@ -1136,7 +1136,7 @@ ggplot(as.data.frame(moranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
 
 ```
 
-```{r Predicted Maps,echo=FALSE, error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
+```{r Predicted Maps,echo=FALSE, results='hide',error=FALSE, message=FALSE, warning=FALSE,fig.asp=1}
 
 # predicting Challenge set
 Miami_Houses <- 
